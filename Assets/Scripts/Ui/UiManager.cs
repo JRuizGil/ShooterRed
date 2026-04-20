@@ -1,24 +1,24 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class UiManager : MonoBehaviour
 {
-    public Canvas[] CanvasRenderers;
+    
+    public List<Canvas> CanvasList = new List<Canvas>();
     void Awake()
     {
-        CanvasRenderers = GetComponentsInChildren<Canvas>();
-    }
-    void Start()
-    {
-        
-    }
-    void OnEnable()
-    {
-        foreach (Canvas canvas in CanvasRenderers)
+        foreach (Canvas canvas in CanvasList)
         {
             canvas.enabled = false;
         }
-        CanvasRenderers[0].enabled = true;
-
+    }
+    void Start()
+    {
+        CanvasList[0].enabled = true;
+    }
+    void OnEnable()
+    {
+                
     }
 }
 
