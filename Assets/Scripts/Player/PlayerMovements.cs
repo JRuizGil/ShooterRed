@@ -10,12 +10,19 @@ public class PlayerMovements : MonoBehaviour
     [SerializeField] private float gravity = -24f;
     [SerializeField] private float jumpHeight = 1.5f;
 
+    [Header("Cámara")]
+    [SerializeField] private float mouseSensitivity = 2f;
+    [SerializeField] private float maxLookUpAngle = 90f;
+    [SerializeField] private float maxLookDownAngle = 90f;
+    [SerializeField] public bool invertVertical = false;
+
     [Header("Referencias")]
     [SerializeField] private Transform cameraTransform;
 
     private CharacterController characterController;
     private Vector3 currentVelocity = Vector3.zero;
     private float verticalVelocity = 0f;
+    private float cameraRotationX = 0f;
 
     private void Start()
     {
@@ -25,11 +32,16 @@ public class PlayerMovements : MonoBehaviour
         {
             cameraTransform = Camera.main.transform;
         }
+
+        // Bloquear y ocultar el cursor
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     private void Update()
     {
         HandleMovement();
+        HandleCamera();
     }
 
     private void HandleMovement()
@@ -76,5 +88,35 @@ public class PlayerMovements : MonoBehaviour
         }
 
         verticalVelocity += gravity * Time.deltaTime;
+    }
+
+    private void HandleCamera()
+    {
+        // Obtener entrada del mouse
+        float mouseX = Input.GetAxis("Mouse X");
+        float mouseY = Input.GetAxis("Mouse Y");
+
+        // Invertir vista vertical si está habilitado
+        if (invertVertical)
+            mouseY = -mouseY;
+
+        // Rotar el jugador horizontalmente (alrededor del eje Y)
+        transform.Rotate(Vector3.up * mouseX * mouseSensitivity);
+
+        // Rotar la cámara verticalmente (alrededor del eje X)
+        cameraRotationX -= mouseY * mouseSensitivity;
+        cameraRotationX = Mathf.Clamp(cameraRotationX, -maxLookUpAngle, maxLookDownAngle);
+
+        if (cameraTransform != null)
+        {
+            cameraTransform.localRotation = Quaternion.Euler(cameraRotationX, 0f, 0f);
+        }
+
+        // Presionar ESC para soltar el cursor
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
     }
 }

@@ -628,6 +628,10 @@ MonoBehaviour:
   deceleration: 30
   gravity: -24
   jumpHeight: 1
+  mouseSensitivity: 2
+  maxLookUpAngle: 90
+  maxLookDownAngle: 90
+  invertVertical: 1
   cameraTransform: {fileID: 5817527918403783633}
 --- !u!81 &1016539960041654724
 AudioListener:
@@ -731,7 +735,6 @@ GameObject:
   - component: {fileID: 3574607455730828377}
   - component: {fileID: 4470185225991643379}
   - component: {fileID: 689896697614374132}
-  - component: {fileID: 1571356951013454512}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -739,22 +742,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1571356951013454512
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1330749588347259115}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 688b9844994307a44bc78f54f3c1a870, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mouseSensitivity: 1000
-  maxVerticalAngle: 0
-  minVerticalAngle: 0
-  playerBody: {fileID: 8612278324417931436}
 --- !u!1 &1814446401250003970
 GameObject:
   m_ObjectHideFlags: 0
