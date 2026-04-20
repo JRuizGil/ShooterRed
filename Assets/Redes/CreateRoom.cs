@@ -15,8 +15,8 @@ public class CreateRoom : NetworkBehaviour
         StartGameResult result = await runner.StartGame(args);
         return result;
     }
-    public void CreateRoomButton(InputField sceneName)
+    public void CreateRoomButton(InputField sceneName, NetworkRunner NetworkManager)
     {
-       CreateRoomAsync(NetworkManager.Instance.Runner, sceneName.text);
+       CreateRoomAsync(NetworkManager, sceneName.text);
     }
 }

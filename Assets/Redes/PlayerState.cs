@@ -6,7 +6,7 @@ public class PlayerState : NetworkBehaviour
     [Networked, OnChangedRender(nameof(OnHealthChanged))]
     public int Health { get; set; }
 
-    [SerializeField] private HealthBar healthBar;
+    //[SerializeField] private HealthBar healthBar;
     [SerializeField] private GameObject hitVfx;
 
     public override void Spawned()
@@ -21,7 +21,7 @@ public class PlayerState : NetworkBehaviour
 
     private void RefreshHealthVisuals()
     {
-        healthBar.SetValueWithoutNotify(Health);
+        // healthBar.SetValueWithoutNotify(Health);
     }
 
     private void PlayLocalDamageFeedback()
