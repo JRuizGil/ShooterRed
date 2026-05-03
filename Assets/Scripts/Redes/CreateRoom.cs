@@ -1,11 +1,11 @@
 using Fusion;
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 
 public class CreateRoom : MonoBehaviour
 {
     [SerializeField]
-    private InputField roomNameInput;
+    private TMP_InputField roomNameInput;
 
     /// <summary>
     /// Botón para crear sala - llamar desde UI Button onClick event
@@ -43,4 +43,3 @@ public class CreateRoom : MonoBehaviour
         }
     }
 }
-

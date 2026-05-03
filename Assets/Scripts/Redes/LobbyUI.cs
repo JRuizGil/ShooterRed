@@ -3,17 +3,18 @@ using UnityEngine.UI;
 using System.Collections.Generic;
 using Fusion;
 using System.Linq;
+using TMPro;
 
 public class LobbyUI : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private Transform sessionListContainer; // Contenedor para items de lista
     [SerializeField] private Prefab sessionListItemPrefab; // Prefab para cada item de la lista
-    [SerializeField] private Text sessionCountText; // Mostrar cantidad de sesiones
-    [SerializeField] private Text playerCountText; // Mostrar jugadores en sesión actual
+    [SerializeField] private TextMeshProUGUI sessionCountText; // Mostrar cantidad de sesiones
+    [SerializeField] private TextMeshProUGUI playerCountText; // Mostrar jugadores en sesión actual
     [SerializeField] private Button refreshSessionsButton;
     [SerializeField] private Button startMatchButton;
-    [SerializeField] private Text statusText;
+    [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private GameObject lobbyPanel; // Panel del lobby que se activa/desactiva
 
     private List<GameObject> sessionListItems = new List<GameObject>();
@@ -128,8 +129,7 @@ public class LobbyUI : MonoBehaviour
         btn.colors = colors;
 
         // Crear text para mostrar nombre y jugadores
-        Text btnText = itemObj.AddComponent<Text>();
-        btnText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        TextMeshProUGUI btnText = itemObj.AddComponent<TextMeshProUGUI>();
         btnText.text = $"{session.Name} ({session.PlayerCount})";
         btnText.color = Color.white;
 
@@ -158,7 +158,7 @@ public class LobbyUI : MonoBehaviour
     /// <summary>
     /// Recargar lista de sesiones manualmente
     /// </summary>
-    private void RefreshSessionListManual()
+    public void RefreshSessionListManual()
     {
         Debug.Log("[LobbyUI] Manual refresh sessions");
         
@@ -248,7 +248,7 @@ public class LobbyUI : MonoBehaviour
     /// <summary>
     /// Iniciar la partida (solo host)
     /// </summary>
-    private void OnStartMatchButton()
+    public void OnStartMatchButton()
     {
         if (LobbyManager.Instance == null || !LobbyManager.Instance.IsHost())
         {
