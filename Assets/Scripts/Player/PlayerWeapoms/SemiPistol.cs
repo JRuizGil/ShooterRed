@@ -1,58 +1,41 @@
+﻿using Fusion;
 using UnityEngine;
-using System.Collections.Generic;
 
-public class SemiPistol : MonoBehaviour
+public class SemiPistol : NetworkBehaviour
 {
-    public GameObject bulletPrefab;
-    public Transform firePoint;
-    public float bulletSpeed = 20f;
-    public int poolSize = 10;
+    [SerializeField] private NetworkPrefabRef bulletPrefab;
+    [SerializeField] private Transform firePoint;
+    [SerializeField] private float bulletSpeed = 20f;
 
-    private List<GameObject> bulletPool = new List<GameObject>();
+    // Guardamos el estado del botón en el tick anterior para detectar WasPressed
+    [Networked] private NetworkButtons PreviousButtons { get; set; }
 
-    void Start()
+    public override void FixedUpdateNetwork()
     {
-        // Crear pool
-        for (int i = 0; i < poolSize; i++)
+        // Solo el cliente con InputAuthority lee su propio input
+        if (!Object.HasInputAuthority) return;
+
+        if (GetInput(out PlayerNetworkInput input))
         {
-            GameObject bullet = Instantiate(bulletPrefab);
-            bullet.SetActive(false);
-            bulletPool.Add(bullet);
+            bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
+            PreviousButtons = input.Buttons;
+
+            if (firePressed)
+                RPC_RequestFire();
         }
     }
 
-    void Update()
+    // El cliente pide disparar → Fusion enruta al servidor
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_RequestFire()
     {
-        // Semiautom�tico (clic izquierdo)
-        if (Input.GetMouseButtonDown(0))
-        {
-            Shoot();
-        }
-    }
+        var bullet = Runner.Spawn(
+            bulletPrefab,
+            firePoint.position,
+            firePoint.rotation,
+            Object.InputAuthority
+        );
 
-    void Shoot()
-    {
-        GameObject bullet = GetBulletFromPool();
-
-        if (bullet != null)
-        {
-            bullet.transform.position = firePoint.position;
-            bullet.transform.rotation = firePoint.rotation;
-
-            Bullet bulletScript = bullet.GetComponent<Bullet>();
-            bulletScript.Init(firePoint.forward * bulletSpeed);
-
-            bullet.SetActive(true);
-        }
-    }
-
-    GameObject GetBulletFromPool()
-    {
-        foreach (var bullet in bulletPool)
-        {
-            if (!bullet.activeInHierarchy)
-                return bullet;
-        }
-        return null;
+        bullet.GetComponent<NetworkBullet>().Init(firePoint.forward * bulletSpeed);
     }
 }

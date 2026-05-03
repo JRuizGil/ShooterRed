@@ -10,6 +10,8 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
 {
     private NetworkRunner runner;
     
+    [SerializeField] private NetworkObject playerPrefab;
+    
     public static NetworkRunnerHandler Instance { get; private set; }
 
     private void Awake()
@@ -43,11 +45,12 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
             Scene = scene,
             SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
         });
-
+        
         if (!result.Ok)
         {
             Debug.LogError("Error: " + result.ShutdownReason);
         }
+        
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -68,7 +71,32 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
-    public void OnInput(NetworkRunner runner, NetworkInput input) { }
+    public void OnInput(NetworkRunner runner, NetworkInput input)
+    {
+        var playerNetworkInput = new PlayerNetworkInput();
+        
+        // Capturar dirección de movimiento
+        playerNetworkInput.MoveDirection = new Vector2(
+            Input.GetAxis("Horizontal"),
+            Input.GetAxis("Vertical")
+        );
+        
+        // Capturar botones
+        if (Input.GetKey(KeyCode.Space))
+            playerNetworkInput.Buttons.Set(PlayerButtons.Jump, true);
+        if (Input.GetMouseButton(0))
+            playerNetworkInput.Buttons.Set(PlayerButtons.Fire, true);
+        
+        // Debug para verificar que se está capturando input
+        if (playerNetworkInput.MoveDirection.sqrMagnitude > 0)
+        {
+            Debug.Log($"[NetworkRunnerHandler] Input capturado: {playerNetworkInput.MoveDirection}");
+        }
+        
+        // Enviar el input al NetworkRunner
+        input.Set(playerNetworkInput);
+    }
+    
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
@@ -129,6 +157,7 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
     public void OnSceneLoadDone(NetworkRunner runner)
     {
         Debug.Log("[Network] Scene load done");
+        InstancePlayer();
     }
 
     public void OnSceneLoadStart(NetworkRunner runner)
@@ -159,5 +188,50 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
     {
         throw new NotImplementedException();
+    }
+
+    public void InstancePlayer()
+    {
+        // Verificar que estamos en la escena PlayerScene
+        if (SceneManager.GetActiveScene().name != "PlayerScene")
+        {
+            Debug.LogWarning("[NetworkRunnerHandler] InstancePlayer() called but scene is not PlayerScene");
+            return;
+        }
+
+        if (runner == null)
+        {
+            Debug.LogError("[NetworkRunnerHandler] NetworkRunner no disponible");
+            return;
+        }
+
+        if (playerPrefab == null)
+        {
+            Debug.LogError("[NetworkRunnerHandler] Player prefab no asignado en el inspector");
+            return;
+        }
+
+        // Generar posición aleatoria dentro de 100 unidades a la redonda
+        Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * 100f;
+        Vector3 spawnPosition = new Vector3(randomCircle.x, 1f, randomCircle.y);
+
+        Debug.Log($"[NetworkRunnerHandler] InstancePlayer() - Spawnando jugador en posición: {spawnPosition}");
+
+        // Hacer spawn networkizado del prefab del jugador
+        NetworkObject spawnedPlayer = runner.Spawn(
+            playerPrefab,
+            spawnPosition,
+            Quaternion.identity,
+            runner.LocalPlayer
+        );
+
+        if (spawnedPlayer == null)
+        {
+            Debug.LogError("[NetworkRunnerHandler] Falló el spawn del jugador");
+        }
+        else
+        {
+            Debug.Log($"[NetworkRunnerHandler] Jugador spawneado exitosamente: {spawnedPlayer.InputAuthority}");
+        }
     }
 }

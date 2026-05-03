@@ -34,12 +34,12 @@ public class PlayerSpawner : MonoBehaviour
             CreateDefaultSpawnPoints();
         }
 
-        // Suscribirse a eventos de lobby para actualizar referencias
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnPlayerJoinedSession += HandlePlayerJoined;
-            LobbyManager.Instance.OnPlayerLeftSession += HandlePlayerLeft;
-        }
+        // Suscripción desactivada: el spawn ahora se hace en NetworkRunnerHandler.InstancePlayer()
+        // if (LobbyManager.Instance != null)
+        // {
+        //     LobbyManager.Instance.OnPlayerJoinedSession += HandlePlayerJoined;
+        //     LobbyManager.Instance.OnPlayerLeftSession += HandlePlayerLeft;
+        // }
     }
 
     /// <summary>
@@ -89,11 +89,12 @@ public class PlayerSpawner : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnPlayerJoinedSession -= HandlePlayerJoined;
-            LobbyManager.Instance.OnPlayerLeftSession -= HandlePlayerLeft;
-        }
+        // Desuscripción desactivada (ver Start())
+        // if (LobbyManager.Instance != null)
+        // {
+        //     LobbyManager.Instance.OnPlayerJoinedSession -= HandlePlayerJoined;
+        //     LobbyManager.Instance.OnPlayerLeftSession -= HandlePlayerLeft;
+        // }
     }
 
     /// <summary>
@@ -102,16 +103,22 @@ public class PlayerSpawner : MonoBehaviour
     /// </summary>
     private void HandlePlayerJoined(PlayerRef playerRef)
     {
-        if (!LobbyManager.Instance.IsHost())
-        {
-            // Solo el host hace el spawn
-            return;
-        }
-
         NetworkRunner runner = LobbyManager.Instance.GetCurrentRunner();
         if (runner == null)
         {
             Debug.LogError("[PlayerSpawner] No runner available when trying to spawn player");
+            return;
+        }
+
+        // Verificar si este es el jugador local
+        bool isLocalPlayer = runner.LocalPlayer == playerRef;
+        Debug.Log($"[PlayerSpawner] Player joined: {playerRef}, IsLocal: {isLocalPlayer}, LocalPlayer: {runner.LocalPlayer}");
+
+        // Todos los clientes pueden hacer spawn de sus propios jugadores, pero solo el host coordina los remotos
+        if (!isLocalPlayer && !LobbyManager.Instance.IsHost())
+        {
+            // Los clientes no-host no hacen spawn de jugadores remotos
+            Debug.Log($"[PlayerSpawner] No-host client ignoring remote player spawn");
             return;
         }
 
@@ -147,6 +154,10 @@ public class PlayerSpawner : MonoBehaviour
         if (spawnedPlayer == null)
         {
             Debug.LogError("[PlayerSpawner] Failed to spawn player");
+        }
+        else
+        {
+            Debug.Log($"[PlayerSpawner] Successfully spawned player {playerRef}");
         }
     }
 
