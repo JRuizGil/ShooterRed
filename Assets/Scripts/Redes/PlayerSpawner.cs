@@ -27,9 +27,11 @@ public class PlayerSpawner : MonoBehaviour
             }
         }
 
+        // If no SpawnPointManager exists, create one with default spawn points
         if (spawnPointManager == null)
         {
-            Debug.LogError("[PlayerSpawner] SpawnPointManager not found!");
+            Debug.LogWarning("[PlayerSpawner] SpawnPointManager not found, creating one with default spawn points");
+            CreateDefaultSpawnPoints();
         }
 
         // Suscribirse a eventos de lobby para actualizar referencias
@@ -37,6 +39,51 @@ public class PlayerSpawner : MonoBehaviour
         {
             LobbyManager.Instance.OnPlayerJoinedSession += HandlePlayerJoined;
             LobbyManager.Instance.OnPlayerLeftSession += HandlePlayerLeft;
+        }
+    }
+
+    /// <summary>
+    /// Create default spawn points if none exist in the scene
+    /// </summary>
+    private void CreateDefaultSpawnPoints()
+    {
+        // Create SpawnPointsManager GameObject
+        GameObject spawnManagerObj = new GameObject("SpawnPointsManager");
+        spawnPointManager = spawnManagerObj.AddComponent<SpawnPointManager>();
+
+        // Create 4 spawn points in different locations
+        Vector3[] spawnPositions = new Vector3[]
+        {
+            new Vector3(-5, 1, -5),   // Front-Left
+            new Vector3(5, 1, -5),    // Front-Right
+            new Vector3(-5, 1, 5),    // Back-Left
+            new Vector3(5, 1, 5)      // Back-Right
+        };
+
+        var spawnPoints = new System.Collections.Generic.List<Transform>();
+
+        for (int i = 0; i < spawnPositions.Length; i++)
+        {
+            GameObject spawnPointObj = new GameObject($"SpawnPoint_{i + 1}");
+            spawnPointObj.transform.position = spawnPositions[i];
+            spawnPointObj.transform.rotation = Quaternion.identity;
+            spawnPoints.Add(spawnPointObj.transform);
+
+            Debug.Log($"[PlayerSpawner] Created spawn point {i + 1} at {spawnPositions[i]}");
+        }
+
+        // Assign spawn points to SpawnPointManager via reflection
+        var field = typeof(SpawnPointManager).GetField("spawnPoints", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        
+        if (field != null)
+        {
+            field.SetValue(spawnPointManager, spawnPoints);
+            Debug.Log("[PlayerSpawner] Assigned spawn points to SpawnPointManager");
+        }
+        else
+        {
+            Debug.LogError("[PlayerSpawner] Could not find spawnPoints field in SpawnPointManager");
         }
     }
 

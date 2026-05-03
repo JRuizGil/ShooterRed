@@ -20,6 +20,7 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
         Instance = this;
+        DontDestroyOnLoad(gameObject);
     }
 
     public async void StartGame(GameMode mode, string sessionName)
@@ -27,11 +28,13 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         if (runner != null)
             return;
 
-        runner = gameObject.AddComponent<NetworkRunner>();
+        runner = gameObject.GetComponent<NetworkRunner>();
+        if (runner == null) runner = gameObject.AddComponent<NetworkRunner>();
         runner.ProvideInput = true;
         runner.AddCallbacks(this);
 
-        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
+        // Load PlayerScene (build index 2)
+        var scene = SceneRef.FromIndex(2);
 
         var result = await runner.StartGame(new StartGameArgs()
         {
