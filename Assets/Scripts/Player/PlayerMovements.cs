@@ -34,6 +34,12 @@ public class PlayerMovements : NetworkBehaviour
     public override void Spawned()
     {
         characterController = GetComponent<CharacterController>();
+        
+        if (characterController == null)
+        {
+            Debug.LogError("[PlayerMovements] CharacterController no encontrado!");
+            return;
+        }
 
         if (cameraTransform == null && Camera.main != null)
             cameraTransform = Camera.main.transform;
@@ -41,19 +47,33 @@ public class PlayerMovements : NetworkBehaviour
         // Solo bloquear cursor para el jugador local
         if (Object.HasInputAuthority)
         {
+            Debug.Log("[PlayerMovements] ¡Este es el jugador local! InputAuthority activa");
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+        }
+        else
+        {
+            Debug.Log("[PlayerMovements] Este es un jugador remoto, sin InputAuthority");
         }
     }
 
     public override void FixedUpdateNetwork()
     {
-        if (!Object.HasInputAuthority) return;
+        if (!Object.HasInputAuthority) 
+        {
+            Debug.LogWarning($"[PlayerMovements] Player {Object.Id} no tiene InputAuthority");
+            return;
+        }
 
         if (GetInput(out PlayerNetworkInput input))
         {
+            Debug.Log($"[PlayerMovements] Input recibido: MoveDir={input.MoveDirection}");
             HandleMovement(input);
             ButtonsPrev = input.Buttons;
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerMovements] GetInput devolvió false - no hay input disponible");
         }
     }
 
