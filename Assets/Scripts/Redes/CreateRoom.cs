@@ -12,6 +12,12 @@ public class CreateRoom : MonoBehaviour
     /// </summary>
     public void OnCreateRoomButtonClicked()
     {
+        if (roomNameInput == null)
+        {
+            Debug.LogError("[CreateRoom] roomNameInput no está asignado en el Inspector.");
+            return;
+        }
+
         string roomName = roomNameInput.text;
         
         if (string.IsNullOrEmpty(roomName))
