@@ -48,6 +48,14 @@ public class LobbyManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Permite disparar el evento de error de red desde fuera de la clase.
+    /// </summary>
+    public void TriggerNetworkError(string message)
+    {
+        OnNetworkError?.Invoke(message);
+    }
+
+    /// <summary>
     /// Crear una nueva sala con nombre personalizado
     /// </summary>
     public async void CreateRoom(string roomName)
@@ -91,7 +99,7 @@ public class LobbyManager : MonoBehaviour
         if (handler != null)
         {
             Debug.Log($"[LobbyManager] Joining room: {roomName}");
-            handler.StartGame(GameMode.AutoHostOrClient, roomName);
+            handler.StartGame(GameMode.Shared, roomName);
         }
         else
         {
@@ -227,11 +235,12 @@ public class LobbyManager : MonoBehaviour
         if (currentRunner != null)
         {
             currentRunner.Shutdown();
-            currentRunner = null;
         }
 
+        currentRunner = null;
         isHost = false;
         currentSessionName = null;
         availableSessions.Clear();
+        Debug.Log("[LobbyManager] Desconectado y limpiado.");
     }
 }

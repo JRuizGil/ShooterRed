@@ -9,6 +9,7 @@ using System;
 public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
 {
     private NetworkRunner runner;
+    private bool _playerInstantiated = false;
     
     [SerializeField] private NetworkObject playerPrefab;
     
@@ -27,30 +28,60 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
 
     public async void StartGame(GameMode mode, string sessionName)
     {
-        if (runner != null)
-            return;
+        if (this == null || gameObject == null) return;
 
+        // Detener y destruir cualquier runner previo para limpiar el estado completamente
+        var existingRunner = GetComponent<NetworkRunner>();
+        if (existingRunner != null)
+        {
+            await existingRunner.Shutdown();
+            
+            // CRITICO: Después de un await, el objeto puede haber sido destruido
+            if (this == null || gameObject == null) return;
+            
+            Destroy(existingRunner);
+        }
+            
+        _playerInstantiated = false;
+
+        // Crear un nuevo Runner
         runner = gameObject.GetComponent<NetworkRunner>();
         if (runner == null) runner = gameObject.AddComponent<NetworkRunner>();
+        
         runner.ProvideInput = true;
         runner.AddCallbacks(this);
 
-        // Load PlayerScene (build index 2)
+        // IMPORTANTE: Verifica tu Build Settings. 
+        // Si PlayerScene es la segunda escena, usa FromIndex(1).
         var scene = SceneRef.FromIndex(2);
+        
+        var sceneManager = gameObject.GetComponent<NetworkSceneManagerDefault>();
+        if (sceneManager == null) sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
+
+        Debug.Log($"[NetworkRunnerHandler] Iniciando modo {mode} en sesión {sessionName}...");
 
         var result = await runner.StartGame(new StartGameArgs()
         {
             GameMode = mode,
             SessionName = sessionName,
+            PlayerCount = 10,
             Scene = scene,
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+            SceneManager = sceneManager
         });
         
         if (!result.Ok)
         {
-            Debug.LogError("Error: " + result.ShutdownReason);
+            Debug.LogError($"[NetworkRunnerHandler] StartGame failed: {result.ShutdownReason}");
+            if (LobbyManager.Instance != null)
+            { // Assuming LobbyManager has a public method to trigger its OnNetworkError event
+                LobbyManager.Instance.TriggerNetworkError($"No se pudo iniciar la sala: {result.ShutdownReason}");
+            }
+
+            runner.RemoveCallbacks(this);
+            Destroy(runner);
+            Destroy(sceneManager);
+            runner = null;
         }
-        
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -59,6 +90,10 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         if (LobbyManager.Instance != null)
         {
             LobbyManager.Instance.OnPlayerJoinedNetwork(runner, player);
+        }
+
+        if (player == runner.LocalPlayer) {
+            TrySpawnPlayer();
         }
     }
 
@@ -87,12 +122,6 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         if (Input.GetMouseButton(0))
             playerNetworkInput.Buttons.Set(PlayerButtons.Fire, true);
         
-        // Debug para verificar que se está capturando input
-        if (playerNetworkInput.MoveDirection.sqrMagnitude > 0)
-        {
-            Debug.Log($"[NetworkRunnerHandler] Input capturado: {playerNetworkInput.MoveDirection}");
-        }
-        
         // Enviar el input al NetworkRunner
         input.Set(playerNetworkInput);
     }
@@ -104,6 +133,7 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         Debug.Log($"[Network] Shutdown: {shutdownReason}");
         if (LobbyManager.Instance != null)
         {
+            _playerInstantiated = false;
             LobbyManager.Instance.OnNetworkShutdown(runner, shutdownReason);
         }
     }
@@ -114,15 +144,6 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         if (LobbyManager.Instance != null)
         {
             LobbyManager.Instance.OnConnectedToServer(runner);
-        }
-    }
-
-    public void OnDisconnectedFromServer(NetworkRunner runner)
-    {
-        Debug.Log("[Network] Disconnected from server");
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnDisconnectedFromServer(runner);
         }
     }
 
@@ -150,13 +171,13 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         Debug.Log("[Network] Host migration detected");
     }
 
-    public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ArraySegment<byte> data)
-    {
-    }
-
     public void OnSceneLoadDone(NetworkRunner runner)
     {
         Debug.Log("[Network] Scene load done");
+        TrySpawnPlayer();
+    }
+
+    private void TrySpawnPlayer() {
         InstancePlayer();
     }
 
@@ -167,43 +188,43 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
     {
-        throw new NotImplementedException();
     }
 
     public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
     {
-        throw new NotImplementedException();
     }
 
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
     {
-        throw new NotImplementedException();
+        Debug.Log($"[Network] Disconnected from server. Reason: {reason}");
+        if (LobbyManager.Instance != null)
+        {
+            LobbyManager.Instance.OnDisconnectedFromServer(runner);
+        }
     }
 
     public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
     {
-        throw new NotImplementedException();
     }
 
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
     {
-        throw new NotImplementedException();
     }
 
     public void InstancePlayer()
     {
-        // Verificar que estamos en la escena PlayerScene
-        if (SceneManager.GetActiveScene().name != "PlayerScene")
+        if (runner == null || !runner.IsRunning) return;
+        if (runner.LocalPlayer == PlayerRef.None) return;
+
+        // Verificación robusta de escena
+        string activeSceneName = SceneManager.GetActiveScene().name;
+        if (activeSceneName != "PlayerScene")
         {
-            Debug.LogWarning("[NetworkRunnerHandler] InstancePlayer() called but scene is not PlayerScene");
+            Debug.LogWarning($"[NetworkRunnerHandler] Esperando a estar en PlayerScene (Actual: {activeSceneName})");
             return;
         }
 
-        if (runner == null)
-        {
-            Debug.LogError("[NetworkRunnerHandler] NetworkRunner no disponible");
-            return;
-        }
+        if (_playerInstantiated) return;
 
         if (playerPrefab == null)
         {
@@ -232,6 +253,7 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         else
         {
             Debug.Log($"[NetworkRunnerHandler] Jugador spawneado exitosamente: {spawnedPlayer.InputAuthority}");
+            _playerInstantiated = true;
         }
     }
 }

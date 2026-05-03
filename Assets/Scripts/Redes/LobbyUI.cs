@@ -22,6 +22,9 @@ public class LobbyUI : MonoBehaviour
 
     private void Start()
     {
+        // Initialize session discovery to start listening for available sessions
+        SessionDiscovery.Initialize();
+
         // Suscribirse a eventos del LobbyManager
         if (LobbyManager.Instance != null)
         {
@@ -45,7 +48,7 @@ public class LobbyUI : MonoBehaviour
         }
 
         // Estado inicial
-        UpdateStatus("En espera de conexión");
+        UpdateStatus("Buscando sesiones disponibles...");
     }
 
     private void OnDestroy()
@@ -70,6 +73,9 @@ public class LobbyUI : MonoBehaviour
         {
             startMatchButton.onClick.RemoveListener(OnStartMatchButton);
         }
+
+        // Shutdown session discovery when leaving lobby
+        SessionDiscovery.Shutdown();
     }
 
     /// <summary>

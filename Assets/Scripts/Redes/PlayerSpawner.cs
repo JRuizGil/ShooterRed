@@ -34,12 +34,12 @@ public class PlayerSpawner : MonoBehaviour
             CreateDefaultSpawnPoints();
         }
 
-        // Suscripción desactivada: el spawn ahora se hace en NetworkRunnerHandler.InstancePlayer()
-        // if (LobbyManager.Instance != null)
-        // {
-        //     LobbyManager.Instance.OnPlayerJoinedSession += HandlePlayerJoined;
-        //     LobbyManager.Instance.OnPlayerLeftSession += HandlePlayerLeft;
-        // }
+        // Subscribe to lobby events for player spawning
+        if (LobbyManager.Instance != null)
+        {
+            LobbyManager.Instance.OnPlayerJoinedSession += HandlePlayerJoined;
+            LobbyManager.Instance.OnPlayerLeftSession += HandlePlayerLeft;
+        }
     }
 
     /// <summary>
@@ -89,12 +89,12 @@ public class PlayerSpawner : MonoBehaviour
 
     private void OnDestroy()
     {
-        // Desuscripción desactivada (ver Start())
-        // if (LobbyManager.Instance != null)
-        // {
-        //     LobbyManager.Instance.OnPlayerJoinedSession -= HandlePlayerJoined;
-        //     LobbyManager.Instance.OnPlayerLeftSession -= HandlePlayerLeft;
-        // }
+        // Unsubscribe from lobby events
+        if (LobbyManager.Instance != null)
+        {
+            LobbyManager.Instance.OnPlayerJoinedSession -= HandlePlayerJoined;
+            LobbyManager.Instance.OnPlayerLeftSession -= HandlePlayerLeft;
+        }
     }
 
     /// <summary>
@@ -114,11 +114,11 @@ public class PlayerSpawner : MonoBehaviour
         bool isLocalPlayer = runner.LocalPlayer == playerRef;
         Debug.Log($"[PlayerSpawner] Player joined: {playerRef}, IsLocal: {isLocalPlayer}, LocalPlayer: {runner.LocalPlayer}");
 
-        // Todos los clientes pueden hacer spawn de sus propios jugadores, pero solo el host coordina los remotos
-        if (!isLocalPlayer && !LobbyManager.Instance.IsHost())
+        // EN SHARED MODE: Cada cliente spawnea SOLO a su propio jugador.
+        // Fusion se encarga de replicar ese objeto en los demás clientes automáticamente.
+        if (!isLocalPlayer)
         {
-            // Los clientes no-host no hacen spawn de jugadores remotos
-            Debug.Log($"[PlayerSpawner] No-host client ignoring remote player spawn");
+            Debug.Log($"[PlayerSpawner] Ignorando spawn de jugador remoto {playerRef}. Fusion lo replicará.");
             return;
         }
 
