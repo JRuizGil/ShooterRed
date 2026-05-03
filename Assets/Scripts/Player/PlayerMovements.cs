@@ -1,7 +1,8 @@
+using Fusion;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerMovements : MonoBehaviour
+public class PlayerMovements : NetworkBehaviour
 {
     [Header("Movimiento")]
     [SerializeField] private float moveSpeed = 6f;
@@ -20,46 +21,69 @@ public class PlayerMovements : MonoBehaviour
     [SerializeField] private Transform cameraTransform;
 
     private CharacterController characterController;
+
+    // Variables locales (no networked — cada cliente simula su propio movimiento)
     private Vector3 currentVelocity = Vector3.zero;
     private float verticalVelocity = 0f;
     private float cameraRotationX = 0f;
 
-    private void Start()
+    // Networked válidos en Fusion 2
+    [Networked] public Vector3 NetworkedVelocity { get; set; }
+    [Networked] public NetworkButtons ButtonsPrev { get; set; }
+
+    public override void Spawned()
     {
         characterController = GetComponent<CharacterController>();
 
         if (cameraTransform == null && Camera.main != null)
-        {
             cameraTransform = Camera.main.transform;
-        }
 
-        // Bloquear y ocultar el cursor
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Solo bloquear cursor para el jugador local
+        if (Object.HasInputAuthority)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasInputAuthority) return;
+
+        if (GetInput(out PlayerNetworkInput input))
+        {
+            HandleMovement(input);
+            ButtonsPrev = input.Buttons;
+        }
     }
 
     private void Update()
-    {
-        HandleMovement();
-        HandleCamera();
+    {        
+            HandleCamera();
     }
 
-    private void HandleMovement()
+    private void HandleMovement(PlayerNetworkInput input)
     {
-        Vector2 input = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-        Vector3 moveDirection = GetMoveDirection(input);
+        Vector3 moveDirection = GetMoveDirection(input.MoveDirection);
 
         Vector3 targetVelocity = moveDirection * moveSpeed;
         float currentSpeed = new Vector3(currentVelocity.x, 0f, currentVelocity.z).magnitude;
         float targetSpeed = new Vector3(targetVelocity.x, 0f, targetVelocity.z).magnitude;
         float usedAcceleration = targetSpeed > currentSpeed ? acceleration : deceleration;
 
-        currentVelocity = Vector3.MoveTowards(currentVelocity, targetVelocity, usedAcceleration * Time.deltaTime);
+        currentVelocity = Vector3.MoveTowards(
+            currentVelocity,
+            targetVelocity,
+            usedAcceleration * Runner.DeltaTime  // Runner.DeltaTime en FixedUpdateNetwork
+        );
 
-        HandleGravity();
+        HandleGravity(input);
 
         Vector3 movement = currentVelocity + Vector3.up * verticalVelocity;
-        characterController.Move(movement * Time.deltaTime);
+        characterController.Move(movement * Runner.DeltaTime);
+
+        // Sincronizar velocidad para otros clientes
+        NetworkedVelocity = currentVelocity;
     }
 
     private Vector3 GetMoveDirection(Vector2 input)
@@ -76,43 +100,36 @@ public class PlayerMovements : MonoBehaviour
         return direction.sqrMagnitude > 0f ? direction.normalized : Vector3.zero;
     }
 
-    private void HandleGravity()
+    private void HandleGravity(PlayerNetworkInput input)
     {
         if (characterController.isGrounded)
         {
             if (verticalVelocity < 0f)
                 verticalVelocity = -2f;
 
-            if (Input.GetButtonDown("Jump"))
+            if (input.Buttons.WasPressed(ButtonsPrev, PlayerButtons.Jump))
                 verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        verticalVelocity += gravity * Time.deltaTime;
+        verticalVelocity += gravity * Runner.DeltaTime;
     }
 
     private void HandleCamera()
     {
-        // Obtener entrada del mouse
         float mouseX = Input.GetAxis("Mouse X");
         float mouseY = Input.GetAxis("Mouse Y");
 
-        // Invertir vista vertical si está habilitado
         if (invertVertical)
             mouseY = -mouseY;
 
-        // Rotar el jugador horizontalmente (alrededor del eje Y)
         transform.Rotate(Vector3.up * mouseX * mouseSensitivity);
 
-        // Rotar la cámara verticalmente (alrededor del eje X)
         cameraRotationX -= mouseY * mouseSensitivity;
         cameraRotationX = Mathf.Clamp(cameraRotationX, -maxLookUpAngle, maxLookDownAngle);
 
         if (cameraTransform != null)
-        {
             cameraTransform.localRotation = Quaternion.Euler(cameraRotationX, 0f, 0f);
-        }
 
-        // Presionar ESC para soltar el cursor
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             Cursor.lockState = CursorLockMode.None;

@@ -1,10 +1,6 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// Sistema de torreta automática sincronizada en red
-/// La torreta apunta y dispara automáticamente a los enemigos
-/// </summary>
 public class TurretSystem : NetworkBehaviour
 {
     [Header("Turret Settings")]
@@ -15,179 +11,138 @@ public class TurretSystem : NetworkBehaviour
 
     [Header("References")]
     [SerializeField] private Transform barrelTransform;
-    [SerializeField] private GameObject projectilePrefab;
+    [SerializeField] private NetworkPrefabRef projectilePrefab; // NetworkPrefabRef, no GameObject
     [SerializeField] private Transform firePoint;
 
     [Header("Effects")]
     [SerializeField] private GameObject muzzleFlashPrefab;
 
-    // Variables de sincronización
-    [Networked] public NetworkObject CurrentTarget { get; set; }
-    [Networked] public float NextFireTime { get; set; } = 0f;
+    [Networked] public NetworkId CurrentTargetId { get; set; } // NetworkId en vez de NetworkObject
+    [Networked] public float NextFireTime { get; set; }
 
-    private float fireTimer = 0f;
+    private NetworkObject currentTargetObject; // referencia local resuelta
     private Collider[] detectionResults = new Collider[10];
 
     public override void Spawned()
     {
-        Debug.Log("[TurretSystem] Turret spawned");
+        if (firePoint == null) firePoint = transform;
+        if (barrelTransform == null) barrelTransform = transform;
 
-        if (firePoint == null)
-            firePoint = transform;
-
-        if (barrelTransform == null)
-            barrelTransform = transform;
-
-        NextFireTime = Time.time;
+        if (Object.HasStateAuthority)
+            NextFireTime = 0f;
     }
 
     public override void FixedUpdateNetwork()
     {
-        if (!HasStateAuthority)
-            return;
+        if (!Object.HasStateAuthority) return;
 
-        // Buscar objetivo más cercano
         FindNearestTarget();
 
-        // Apuntar al objetivo
-        if (CurrentTarget != null)
+        // Resolver NetworkId → NetworkObject localmente
+        currentTargetObject = CurrentTargetId.IsValid
+            ? Runner.FindObject(CurrentTargetId)
+            : null;
+
+        if (currentTargetObject != null)
         {
             AimAtTarget();
             CheckFire();
         }
         else
         {
-            // Retornar a posición neutral si no hay objetivo
             RotateTowards(barrelTransform.forward + Vector3.up * 0.5f);
         }
     }
 
-    /// <summary>
-    /// Buscar el objetivo enemigo más cercano
-    /// </summary>
     private void FindNearestTarget()
     {
-        int hits = Physics.OverlapSphereNonAlloc(transform.position, detectionRange, detectionResults, enemyLayer);
+        int hits = Physics.OverlapSphereNonAlloc(
+            transform.position, detectionRange, detectionResults, enemyLayer);
 
         NetworkObject closestTarget = null;
         float closestDistance = float.MaxValue;
 
         for (int i = 0; i < hits; i++)
         {
-            if (detectionResults[i] == null)
-                continue;
+            if (detectionResults[i] == null) continue;
 
-            Collider col = detectionResults[i];
-            PlayerHealth playerHealth = col.GetComponent<PlayerHealth>();
-            
-            if (playerHealth != null && playerHealth.GetIsAlive())
+            PlayerHealth playerHealth = detectionResults[i].GetComponent<PlayerHealth>();
+            if (playerHealth == null || !playerHealth.GetIsAlive()) continue;
+
+            NetworkObject netObj = detectionResults[i].GetComponent<NetworkObject>();
+            if (netObj == null) continue;
+
+            float distance = Vector3.Distance(transform.position, detectionResults[i].transform.position);
+            if (distance < closestDistance)
             {
-                float distance = Vector3.Distance(transform.position, col.transform.position);
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                    closestTarget = col.GetComponent<NetworkObject>();
-                }
+                closestDistance = distance;
+                closestTarget = netObj;
             }
         }
 
-        CurrentTarget = closestTarget;
+        // Guardar el NetworkId (tipo válido en [Networked])
+        CurrentTargetId = closestTarget != null ? closestTarget.Id : default;
     }
 
-    /// <summary>
-    /// Apuntar hacia el objetivo
-    /// </summary>
     private void AimAtTarget()
     {
-        if (CurrentTarget == null)
-            return;
-
-        Vector3 directionToTarget = (CurrentTarget.transform.position - barrelTransform.position).normalized;
-        RotateTowards(directionToTarget);
+        if (currentTargetObject == null) return;
+        Vector3 dir = (currentTargetObject.transform.position - barrelTransform.position).normalized;
+        RotateTowards(dir);
     }
 
-    /// <summary>
-    /// Rotar el barrel hacia una dirección
-    /// </summary>
     private void RotateTowards(Vector3 direction)
     {
-        if (barrelTransform == null)
-            return;
-
+        if (direction == Vector3.zero) return;
         Quaternion targetRotation = Quaternion.LookRotation(direction);
         barrelTransform.rotation = Quaternion.RotateTowards(
             barrelTransform.rotation,
             targetRotation,
-            rotationSpeed * Time.deltaTime
+            rotationSpeed * Runner.DeltaTime  // Runner.DeltaTime en FixedUpdateNetwork
         );
     }
 
-    /// <summary>
-    /// Verificar y ejecutar disparo
-    /// </summary>
     private void CheckFire()
     {
-        if (Time.time >= NextFireTime)
+        if (Runner.SimulationTime >= NextFireTime)
         {
             Fire();
-            NextFireTime = Time.time + fireRate;
+            NextFireTime = Runner.SimulationTime + fireRate;
         }
     }
 
-    /// <summary>
-    /// Disparar
-    /// </summary>
     private void Fire()
     {
-        if (CurrentTarget == null)
-            return;
+        if (currentTargetObject == null) return;
 
-        Debug.Log("[TurretSystem] Turret firing!");
+        RPC_PlayTurretFireEffects();
 
-        // Reproducir efectos visuales
-        PlayFireEffects();
-
-        // Si hay un prefab de proyectil, instanciarlo
-        if (projectilePrefab != null && firePoint != null)
+        // Opción A: proyectil de red (si tienes prefab configurado)
+        if (projectilePrefab.IsValid)
         {
-            Vector3 targetPos = CurrentTarget.transform.position;
-            Vector3 directionToTarget = (targetPos - firePoint.position).normalized;
-            
-            GameObject projectile = Instantiate(
+            Vector3 dir = (currentTargetObject.transform.position - firePoint.position).normalized;
+            var projObj = Runner.Spawn(
                 projectilePrefab,
                 firePoint.position,
-                Quaternion.LookRotation(directionToTarget)
+                Quaternion.LookRotation(dir),
+                Object.StateAuthority
             );
-
-            TurretProjectile proj = projectile.GetComponent<TurretProjectile>();
-            if (proj != null)
-            {
-                proj.Initialize(directionToTarget, this);
-            }
+            projObj.GetComponent<TurretProjectile>()?.Initialize(dir, this);
         }
         else
         {
-            // Alternative: raycast directo (más simple)
-            if (firePoint != null)
+            // Opción B: raycast directo (más simple y barato en red)
+            if (Physics.Raycast(firePoint.position, firePoint.forward, out RaycastHit hit, detectionRange))
             {
-                RaycastHit hit;
-                if (Physics.Raycast(firePoint.position, firePoint.forward, out hit, detectionRange))
-                {
-                    PlayerHealth targetHealth = hit.collider.GetComponent<PlayerHealth>();
-                    if (targetHealth != null)
-                    {
-                            // Usar PlayerRef.None para la torreta
-                            targetHealth.TakeDamage(hit.collider.gameObject, PlayerRef.None);
-                    }
-                }
+                PlayerHealth targetHealth = hit.collider.GetComponent<PlayerHealth>();
+                if (targetHealth != null)
+                    targetHealth.TakeDamage(hit.collider.gameObject.name, PlayerRef.None);
             }
         }
     }
 
-    /// <summary>
-    /// Reproducir efectos visuales de disparo
-    /// </summary>
-    private void PlayFireEffects()
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_PlayTurretFireEffects()
     {
         if (muzzleFlashPrefab != null && firePoint != null)
         {
@@ -196,20 +151,6 @@ public class TurretSystem : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// RPC para sincronizar efectos de disparo
-    /// </summary>
-    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_PlayTurretFireEffects()
-    {
-        // Reproducir sonido de disparo
-        // Reproducir animación de retroceso
-        Debug.Log("[TurretSystem] Fire effects sync");
-    }
-
-    /// <summary>
-    /// Dibujar gizmos para debug
-    /// </summary>
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
@@ -217,50 +158,3 @@ public class TurretSystem : NetworkBehaviour
     }
 }
 
-/// <summary>
-/// Proyectil de la torreta
-/// </summary>
-public class TurretProjectile : MonoBehaviour
-{
-    [SerializeField] private float speed = 20f;
-    [SerializeField] private float lifetime = 10f;
-    private Vector3 direction;
-    private TurretSystem turret;
-    private float spawnTime;
-
-    public void Initialize(Vector3 fireDirection, TurretSystem turretSystem)
-    {
-        direction = fireDirection;
-        turret = turretSystem;
-        spawnTime = Time.time;
-    }
-
-    private void Update()
-    {
-        // Mover el proyectil
-        transform.position += direction * speed * Time.deltaTime;
-
-        // Auto-destruir después de cierto tiempo
-        if (Time.time - spawnTime > lifetime)
-        {
-            Destroy(gameObject);
-        }
-
-        // Raycast para detectar colisiones
-        RaycastHit hit;
-        if (Physics.Raycast(transform.position - direction * speed * Time.deltaTime, direction, out hit, speed * Time.deltaTime * 2))
-        {
-            if (!hit.collider.CompareTag("Turret"))
-            {
-                PlayerHealth targetHealth = hit.collider.GetComponent<PlayerHealth>();
-                if (targetHealth != null)
-                {
-                    // Usar PlayerRef.None para la torreta
-                    targetHealth.TakeDamage(hit.collider.gameObject, PlayerRef.None);
-                }
-
-                Destroy(gameObject);
-            }
-        }
-    }
-}
