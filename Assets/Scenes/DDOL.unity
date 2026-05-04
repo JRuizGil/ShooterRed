@@ -498,7 +498,6 @@ GameObject:
   - component: {fileID: 1889659766}
   - component: {fileID: 1889659765}
   - component: {fileID: 1889659767}
-  - component: {fileID: 1889659768}
   m_Layer: 0
   m_Name: FisionManager
   m_TagString: Untagged
@@ -557,20 +556,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cce710ea3f122b942b90153b7780cfb8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1889659768
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1889659763}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8acf6e27e7f22f9429fc1231c25bc027, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  playerPrefab: {fileID: 9057257660090389972, guid: 05cf997d00555d2408ede8b0b79e2db5,
-    type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

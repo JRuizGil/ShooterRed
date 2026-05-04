@@ -50,7 +50,7 @@ public class LobbyManager : MonoBehaviour
     {
         if (_runner == null)
         {
-            _runner = gameObject.AddComponent<NetworkRunner>();
+            _runner = DDOLManager.Instance.runner;
             _runner.ProvideInput = true;
         }
 
