@@ -30,6 +30,8 @@ public class PlayerMovements : NetworkBehaviour
     // Networked válidos en Fusion 2
     [Networked] public Vector3 NetworkedVelocity { get; set; }
     [Networked] public NetworkButtons ButtonsPrev { get; set; }
+    [Networked] public string PlayerDisplayName { get; set; }
+    [Networked] public int TeamId { get; set; }
 
     public override void Spawned()
     {
@@ -154,6 +156,24 @@ public class PlayerMovements : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+    }
+
+    public void SetPlayerName(string name)
+    {
+        if (Object.HasInputAuthority)
+        {
+            PlayerDisplayName = name;
+            Debug.Log($"[PlayerMovements] Player name set: {name}");
+        }
+    }
+
+    public void SetTeam(int team)
+    {
+        if (Object.HasInputAuthority)
+        {
+            TeamId = team;
+            Debug.Log($"[PlayerMovements] Team set: {team}");
         }
     }
 }

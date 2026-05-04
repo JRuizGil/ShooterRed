@@ -133,7 +133,7 @@ public class GameHUD : MonoBehaviour
         if (gameState == null || killStreakText == null)
             return;
 
-        GameState.PlayerStats stats = gameState.GetPlayerStats(localPlayer);
+        PlayerStats stats = gameState.GetPlayerStats(localPlayer); // Corrected scope for PlayerStats
         if (stats == null)
             return;
 
@@ -172,7 +172,7 @@ public class GameHUD : MonoBehaviour
         if (gameState == null || statsText == null)
             return;
 
-        GameState.PlayerStats stats = gameState.GetPlayerStats(localPlayer);
+        PlayerStats stats = gameState.GetPlayerStats(localPlayer); // Corrected scope for PlayerStats
         if (stats == null)
             return;
 

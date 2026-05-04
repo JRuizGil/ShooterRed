@@ -69,11 +69,10 @@ public class LeaderboardUI : MonoBehaviour
             for (int i = 0; i < Mathf.Min(leaderboard.Count, maxEntriesDisplay); i++)
             {
                 var entry = leaderboard[i];
-                string playerName = GetPlayerName(entry.player);
+                string playerName = entry.PlayerName; // PlayerStats now contains PlayerName directly
                 string rank = (i + 1).ToString();
 
-                leaderboardContent += $"{rank.PadRight(4)} | {playerName.PadRight(8)} | " +
-                    $"{entry.Item2.Kills} | {entry.Item2.Deaths} | {entry.Item2.KillStreak}\n";
+                leaderboardContent += $"{rank.PadRight(4)} | {playerName.PadRight(8)} | {entry.Kills} | {entry.Deaths} | {entry.KillStreak}\n";
             }
 
             leaderboardText.text = leaderboardContent;

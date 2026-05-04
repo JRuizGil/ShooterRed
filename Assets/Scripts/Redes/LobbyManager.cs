@@ -1,25 +1,27 @@
-using Fusion;
-using UnityEngine;
 using System.Collections.Generic;
-using System;
+using UnityEngine;
+using Fusion;
+using System.Threading.Tasks;
+using System.Linq; // Necesario para contar jugadores fácilmente
 
 public class LobbyManager : MonoBehaviour
 {
     public static LobbyManager Instance { get; private set; }
 
-    // Events para que LobbyUI y otros sistemas se subscriban
-    public event Action<List<SessionInfo>> OnSessionListChanged;
-    public event Action<PlayerRef> OnPlayerJoinedSession;
-    public event Action<PlayerRef> OnPlayerLeftSession;
-    public event Action<string> OnNetworkError;
-    public event Action OnServerConnected;
-    public event Action OnServerDisconnected;
-    public event Action<ShutdownReason> OnNetworkClosed;
+    public string SessionCode { get; private set; }
+    public bool GameStarted { get; set; }
 
-    private NetworkRunner currentRunner;
-    private List<SessionInfo> availableSessions = new List<SessionInfo>();
-    private string currentSessionName;
-    private bool isHost = false;
+    // Diccionario restaurado para que GetPlayerNames() funcione[cite: 1]
+    private Dictionary<PlayerRef, string> connectedPlayers = new();
+
+    private NetworkRunner _runner;
+
+    public bool IsHost => _runner != null && _runner.IsServer;
+
+    // Corregido: Usa SessionInfo para obtener el conteo real de la sala
+    public int PlayerCount => (_runner != null && _runner.SessionInfo != null)
+        ? _runner.SessionInfo.PlayerCount
+        : connectedPlayers.Count;
 
     private void Awake()
     {
@@ -32,215 +34,68 @@ public class LobbyManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    public NetworkRunner GetCurrentRunner()
+    // --- MÉTODOS DE CONEXIÓN ---
+
+    public async Task<bool> CreateLobbyAsync(string sessionName)
     {
-        return currentRunner;
+        return await StartSessionAsync(sessionName, GameMode.Host);
     }
 
-    public bool IsHost()
+    public async Task<bool> JoinLobbyAsync(string sessionName)
     {
-        return isHost;
+        return await StartSessionAsync(sessionName, GameMode.Client);
     }
 
-    public string GetCurrentSessionName()
+    private async Task<bool> StartSessionAsync(string sessionName, GameMode mode)
     {
-        return currentSessionName;
+        if (_runner == null)
+        {
+            _runner = gameObject.AddComponent<NetworkRunner>();
+            _runner.ProvideInput = true;
+        }
+
+        SessionCode = sessionName;
+
+        var sceneManager = gameObject.GetComponent<NetworkSceneManagerDefault>();
+        if (sceneManager == null) sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
+
+        var result = await _runner.StartGame(new StartGameArgs()
+        {
+            GameMode = mode,
+            SessionName = sessionName,
+            SceneManager = sceneManager
+        });
+
+        return result.Ok;
     }
 
-    /// <summary>
-    /// Permite disparar el evento de error de red desde fuera de la clase.
-    /// </summary>
-    public void TriggerNetworkError(string message)
+    // --- MÉTODOS REQUERIDOS POR TUS OTROS SCRIPTS[cite: 1] ---
+
+    public void RegisterPlayerData(PlayerRef player, PlayerData data)
     {
-        OnNetworkError?.Invoke(message);
+        // Este método lo llama PlayerData.cs
+        Debug.Log($"[LobbyManager] Datos recibidos del jugador: {player}");
     }
 
-    /// <summary>
-    /// Crear una nueva sala con nombre personalizado
-    /// </summary>
-    public async void CreateRoom(string roomName)
+    public void RegisterPlayer(PlayerRef player, string playerName)
     {
-        if (string.IsNullOrEmpty(roomName))
+        if (!connectedPlayers.ContainsKey(player))
         {
-            OnNetworkError?.Invoke("El nombre de la sala no puede estar vacío");
-            return;
-        }
-
-        currentSessionName = roomName;
-        isHost = true;
-
-        NetworkRunnerHandler handler = NetworkRunnerHandler.Instance;
-        if (handler != null)
-        {
-            Debug.Log($"[LobbyManager] Creating room: {roomName}");
-            handler.StartGame(GameMode.Shared, roomName);
-        }
-        else
-        {
-            OnNetworkError?.Invoke("NetworkRunnerHandler no encontrado");
-        }
-    }
-
-    /// <summary>
-    /// Unirse a una sala existente
-    /// </summary>
-    public void JoinRoom(string roomName)
-    {
-        if (string.IsNullOrEmpty(roomName))
-        {
-            OnNetworkError?.Invoke("Debes seleccionar una sala");
-            return;
-        }
-
-        currentSessionName = roomName;
-        isHost = false;
-
-        NetworkRunnerHandler handler = NetworkRunnerHandler.Instance;
-        if (handler != null)
-        {
-            Debug.Log($"[LobbyManager] Joining room: {roomName}");
-            handler.StartGame(GameMode.Shared, roomName);
-        }
-        else
-        {
-            OnNetworkError?.Invoke("NetworkRunnerHandler no encontrado");
+            connectedPlayers.Add(player, playerName);
         }
     }
 
-    /// <summary>
-    /// Obtener lista actual de sesiones disponibles
-    /// </summary>
-    public List<SessionInfo> GetAvailableSessions()
+    public List<string> GetPlayerNames()
     {
-        return new List<SessionInfo>(availableSessions);
+        // Este método lo llama PlayerSpawner.cs
+        return connectedPlayers.Values.ToList();
     }
 
-    // ===== Callbacks desde NetworkRunnerHandler =====
-
-    /// <summary>
-    /// Llamado por NetworkRunnerHandler cuando la lista de sesiones se actualiza
-    /// </summary>
-    public void OnSessionListUpdatedNetwork(List<SessionInfo> sessionList)
+    public void StartGame(string sceneName)
     {
-        if (sessionList != null)
-        {
-            availableSessions = new List<SessionInfo>(sessionList);
-            Debug.Log($"[LobbyManager] Sessions updated: {sessionList.Count} available");
-            
-            // Notificar a los listeners (UI, etc.)
-            try
-            {
-                OnSessionListChanged?.Invoke(availableSessions);
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[LobbyManager] Error invoking OnSessionListChanged: {ex}");
-            }
-        }
-    }
+        if (!IsHost) return;
 
-    /// <summary>
-    /// Llamado por NetworkRunnerHandler cuando un jugador entra
-    /// </summary>
-    public void OnPlayerJoinedNetwork(NetworkRunner runner, PlayerRef playerRef)
-    {
-        if (currentRunner == null)
-        {
-            currentRunner = runner;
-        }
-
-        Debug.Log($"[LobbyManager] Player joined: {playerRef}");
-        try
-        {
-            OnPlayerJoinedSession?.Invoke(playerRef);
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[LobbyManager] Error invoking OnPlayerJoinedSession: {ex}");
-        }
-    }
-
-    /// <summary>
-    /// Llamado por NetworkRunnerHandler cuando un jugador sale
-    /// </summary>
-    public void OnPlayerLeftNetwork(NetworkRunner runner, PlayerRef playerRef)
-    {
-        Debug.Log($"[LobbyManager] Player left: {playerRef}");
-        try
-        {
-            OnPlayerLeftSession?.Invoke(playerRef);
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[LobbyManager] Error invoking OnPlayerLeftSession: {ex}");
-        }
-    }
-
-    /// <summary>
-    /// Llamado por NetworkRunnerHandler cuando se conecta al servidor
-    /// </summary>
-    public void OnConnectedToServer(NetworkRunner runner)
-    {
-        currentRunner = runner;
-        Debug.Log($"[LobbyManager] Connected to server, runner: {runner.name}");
-        try
-        {
-            OnServerConnected?.Invoke();
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[LobbyManager] Error invoking OnServerConnected event: {ex}");
-        }
-    }
-
-    /// <summary>
-    /// Llamado por NetworkRunnerHandler cuando se desconecta
-    /// </summary>
-    public void OnDisconnectedFromServer(NetworkRunner runner)
-    {
-        Debug.Log("[LobbyManager] Disconnected from server");
-        try
-        {
-            OnServerDisconnected?.Invoke();
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[LobbyManager] Error invoking OnServerDisconnected event: {ex}");
-        }
-    }
-
-    /// <summary>
-    /// Llamado por NetworkRunnerHandler cuando hay shutdown
-    /// </summary>
-    public void OnNetworkShutdown(NetworkRunner runner, ShutdownReason reason)
-    {
-        Debug.Log($"[LobbyManager] Network shutdown: {reason}");
-        currentRunner = null;
-        availableSessions.Clear();
-        try
-        {
-            OnNetworkClosed?.Invoke(reason);
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"[LobbyManager] Error invoking OnNetworkClosed: {ex}");
-        }
-    }
-
-    /// <summary>
-    /// Desconectar de la sesión actual
-    /// </summary>
-    public void Disconnect()
-    {
-        if (currentRunner != null)
-        {
-            currentRunner.Shutdown();
-        }
-
-        currentRunner = null;
-        isHost = false;
-        currentSessionName = null;
-        availableSessions.Clear();
-        Debug.Log("[LobbyManager] Desconectado y limpiado.");
+        GameStarted = true;
+        _runner.LoadScene(SceneRef.FromIndex(UnityEngine.SceneManagement.SceneUtility.GetBuildIndexByScenePath(sceneName)));
     }
 }
