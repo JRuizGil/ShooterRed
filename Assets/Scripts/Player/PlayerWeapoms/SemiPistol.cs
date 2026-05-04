@@ -1,34 +1,61 @@
 ﻿using Fusion;
 using UnityEngine;
 
-public class SemiPistol : NetworkBehaviour
+/// <summary>
+/// Pistola semiautomática que dispara una bala por clic.
+/// Ahora hereda de BaseWeapon para ser compatible con el sistema de pickups.
+/// </summary>
+public class SemiPistol : BaseWeapon
 {
-    [SerializeField] private NetworkPrefabRef bulletPrefab;
-    [SerializeField] private Transform firePoint;
-    [SerializeField] private float bulletSpeed = 20f;
+    private void Start()
+    {
+        weaponName = "Semi Pistol";
+        ammoCapacity = 15;
+        fireRate = 0.15f;
+        bulletSpeed = 20f;
+        CurrentAmmo = ammoCapacity;
+    }
 
-    // Guardamos el estado del botón en el tick anterior para detectar WasPressed
-    [Networked] private NetworkButtons PreviousButtons { get; set; }
+    public override void OnEquip()
+    {
+        base.OnEquip();
+        // Aquí podrías añadir efectos de sonido, animaciones, etc.
+    }
 
     public override void FixedUpdateNetwork()
     {
-        // Solo el cliente con InputAuthority lee su propio input
-        if (!Object.HasInputAuthority) return;
+        if (!Object.HasInputAuthority || !isEquipped) return;
 
         if (GetInput(out PlayerNetworkInput input))
         {
-            bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
-            PreviousButtons = input.Buttons;
-
-            if (firePressed)
-                RPC_RequestFire();
+            HandleFireInput(input);
         }
+    }
+
+    public override void Fire()
+    {
+        if (CurrentAmmo <= 0)
+        {
+            Debug.Log("[SemiPistol] ¡Sin munición!");
+            return;
+        }
+
+        if (!Object.HasStateAuthority) return;
+
+        RPC_RequestFire();
+        CurrentAmmo--;
     }
 
     // El cliente pide disparar → Fusion enruta al servidor
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_RequestFire()
     {
+        if (bulletPrefab == null)
+        {
+            Debug.LogError("[SemiPistol] BulletPrefab no asignado!");
+            return;
+        }
+
         var bullet = Runner.Spawn(
             bulletPrefab,
             firePoint.position,
@@ -36,6 +63,10 @@ public class SemiPistol : NetworkBehaviour
             Object.InputAuthority
         );
 
-        bullet.GetComponent<NetworkBullet>().Init(firePoint.forward * bulletSpeed);
+        NetworkBullet bulletScript = bullet.GetComponent<NetworkBullet>();
+        if (bulletScript != null)
+        {
+            bulletScript.Init(firePoint.forward * bulletSpeed);
+        }
     }
 }

@@ -82,12 +82,14 @@ MonoBehaviour:
   rotationSpeed: 180
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 0
   barrelTransform: {fileID: 2563984717774597569}
-  projectilePrefab: {fileID: 0}
+  projectilePrefab:
+    RawGuidValue: e1633c9932cec954491a9ebadd5735f0
   firePoint: {fileID: 6299781645629554685}
   muzzleFlashPrefab: {fileID: 0}
-  _CurrentTarget: {fileID: 0}
+  _CurrentTargetId:
+    Raw: 0
   _NextFireTime: 0
 --- !u!114 &7753335509071123193
 MonoBehaviour:
