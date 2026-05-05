@@ -253,12 +253,9 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
             Input.GetAxis("Vertical")
         );
 
-        // ✅ Enviar la rotación Y actual del jugador local con el input
-        // El host la usará para calcular la dirección de movimiento correcta
-        // en vez de usar su rotación interpolada (que tiene retraso)
-        var localPlayer = runner.GetPlayerObject(runner.LocalPlayer);
-        if (localPlayer != null)
-            data.YawAngle = localPlayer.transform.eulerAngles.y;
+        // Leer el yaw local acumulado por HandleCamera() — siempre actualizado
+        // transform.eulerAngles.y puede estar desincronizado por Render()
+        data.YawAngle = PlayerMovements.LocalYawAngle;
 
         if (Input.GetKey(KeyCode.Space))    data.Buttons.Set(PlayerButtons.Jump, true);
         if (Input.GetMouseButton(0))        data.Buttons.Set(PlayerButtons.Fire, true);

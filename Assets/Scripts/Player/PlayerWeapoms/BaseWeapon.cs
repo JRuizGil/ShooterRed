@@ -1,103 +1,122 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// Clase base para todas las armas del juego.
-/// Define la interfaz común y comportamientos generales de las armas.
-/// </summary>
 public abstract class BaseWeapon : NetworkBehaviour
 {
     [Header("Weapon Info")]
     [SerializeField] protected string weaponName = "Weapon";
-    [SerializeField] protected int ammoCapacity = 30;
-    [SerializeField] protected float fireRate = 0.1f; // Segundos entre disparos
+    [SerializeField] protected int ammoCapacity  = 30;
+    [SerializeField] protected float fireRate    = 0.1f;
     [SerializeField] protected float bulletSpeed = 20f;
 
     [Header("References")]
     [SerializeField] protected Transform firePoint;
     [SerializeField] protected NetworkPrefabRef bulletPrefab;
 
-    // Networked properties
     [Networked] public int CurrentAmmo { get; set; }
     [Networked] protected NetworkButtons PreviousButtons { get; set; }
     [Networked] protected TickTimer FireCooldown { get; set; }
 
-    // Local variables
-    
-    protected bool isEquipped = false;
-    protected bool canFire = true;
+    // isEquipped networked — todos los clientes ven el estado correcto
+    [Networked] private NetworkBool _isEquipped { get; set; }
+
+    // Propiedad protegida para que las clases hijas puedan leerla igual que antes
+    protected bool isEquipped => _isEquipped;
 
     public virtual string GetWeaponName() => weaponName;
-    public virtual int GetCurrentAmmo() => CurrentAmmo;
-    public virtual int GetAmmoCapacity() => ammoCapacity;
-    public virtual bool IsEquipped() => isEquipped;
+    public virtual int GetCurrentAmmo()   => CurrentAmmo;
+    public virtual int GetAmmoCapacity()  => ammoCapacity;
+    public virtual bool IsEquipped()      => _isEquipped;
 
-    /// <summary>
-    /// Se llama cuando el arma es equipada por un jugador
-    /// </summary>
+    // CanShoot publico para que PlayerWeaponManager lo consulte
+    public virtual bool CanShoot() =>
+        _isEquipped && CurrentAmmo > 0 && FireCooldown.ExpiredOrNotRunning(Runner);
+
     public virtual void OnEquip()
     {
-        isEquipped = true;
+        _isEquipped = true;
         CurrentAmmo = ammoCapacity;
         gameObject.SetActive(true);
         Debug.Log($"[{weaponName}] Equipada!");
     }
 
-    /// <summary>
-    /// Se llama cuando el arma es desequipada
-    /// </summary>
     public virtual void OnUnequip()
     {
-        isEquipped = false;
-        gameObject.SetActive(false);
+        _isEquipped = false;
+        // No desactivar el GameObject aquí — el WeaponHolder lo gestiona
+        // Si desactivamos, el objeto desaparece también como pickup
         Debug.Log($"[{weaponName}] Desequipada!");
     }
 
-    /// <summary>
-    /// Recargar el arma
-    /// </summary>
     public virtual void Reload()
     {
-        if (!isEquipped) return;
-        
+        if (!_isEquipped) return;
         CurrentAmmo = ammoCapacity;
-        Debug.Log($"[{weaponName}] Recargada! Munición: {CurrentAmmo}");
     }
 
-    /// <summary>
-    /// Obtener munición (para el HUD)
-    /// </summary>
-    public virtual string GetAmmoDisplay()
+    public virtual string GetAmmoDisplay() => $"{CurrentAmmo}/{ammoCapacity}";
+
+    public override void Render()
     {
-        return $"{CurrentAmmo}/{ammoCapacity}";
+        // Solo gestionar visibilidad cuando el arma está siendo portada por un jugador
+        // Si no está equipada por nadie (pickup en suelo) no tocar el GameObject
+        if (!_isEquipped) return;
+
+        // Si está equipada, asegurarse de que sea visible
+        if (!gameObject.activeSelf)
+            gameObject.SetActive(true);
     }
 
-    /// <summary>
-    /// Disparar arma (debe ser implementado por cada tipo de arma)
-    /// </summary>
-    public abstract void Fire();
+    // =========================================================
+    // RUTA A: PlayerWeaponManager llama Shoot() desde el host
+    // =========================================================
+    public virtual void Shoot(NetworkRunner runner, Vector3 origin, Vector3 direction,
+                              PlayerRef shooter, NetworkPrefabRef externalBulletPrefab)
+    {
+        if (!CanShoot()) return;
 
-    /// <summary>
-    /// Método que se llama en FixedUpdateNetwork para manejar inputs
-    /// </summary>
-    // Añadir en BaseWeapon.cs — reemplaza HandleFireInput
+        FireCooldown = TickTimer.CreateFromSeconds(runner, fireRate);
+        CurrentAmmo--;
+
+        NetworkPrefabRef prefabToUse = bulletPrefab.IsValid ? bulletPrefab : externalBulletPrefab;
+        if (!prefabToUse.IsValid)
+        {
+            Debug.LogError($"[{weaponName}] No hay bulletPrefab asignado!");
+            return;
+        }
+
+        Vector3 velocity = direction.normalized * bulletSpeed;
+        runner.Spawn(
+            prefabToUse,
+            origin,
+            Quaternion.LookRotation(direction),
+            shooter,
+            onBeforeSpawned: (r, obj) => obj.GetComponent<NetworkBullet>()?.Init(velocity)
+        );
+
+        Debug.Log($"[{weaponName}] Disparada! Ammo: {CurrentAmmo}");
+    }
+
+    // =========================================================
+    // RUTA B: cliente llama HandleFireInput -> RPC al host
+    // (mantener por compatibilidad con armas que lo usen directamente)
+    // =========================================================
     protected virtual void HandleFireInput(PlayerNetworkInput input)
     {
-        if (!isEquipped || !Object.HasInputAuthority) return;
+        if (!_isEquipped || !Object.HasInputAuthority) return;
 
         bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
-        PreviousButtons = input.Buttons;
+        PreviousButtons  = input.Buttons;
 
         if (firePressed && FireCooldown.ExpiredOrNotRunning(Runner))
         {
-            RPC_Fire(); // cliente pide al servidor
+            RPC_Fire();
             FireCooldown = TickTimer.CreateFromSeconds(Runner, fireRate);
         }
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    protected void RPC_Fire()
-    {
-        Fire(); // servidor ejecuta el disparo real
-    }
+    protected void RPC_Fire() => Fire();
+
+    public abstract void Fire();
 }

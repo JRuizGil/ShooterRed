@@ -112,8 +112,6 @@ MonoBehaviour:
   bulletPrefab:
     RawGuidValue: 1d4ce415c4d178240b90e07ef3ce5c44
   _CurrentAmmo: 0
-  bulletPrefabRef:
-    RawGuidValue: 1d4ce415c4d178240b90e07ef3ce5c44
 --- !u!114 &5645665971172949608
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -126,10 +124,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae3eb7a21f15c3a409b95d1069809d47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  pickupRadius: 2
+  pickupRadius: 1
   pickupCooldown: 1
-  pickupRotationOffset: {x: 0, y: 0, z: 0}
-  enablePickupGlow: 1
+  enablePickupGlow: 0
   glowColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   glowIntensity: 1.5
 --- !u!114 &2167165032310478845

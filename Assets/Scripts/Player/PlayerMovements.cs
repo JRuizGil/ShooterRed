@@ -52,6 +52,8 @@ public class PlayerMovements : NetworkBehaviour
 
         if (Object.HasInputAuthority)
         {
+            // Inicializar yaw local con la rotacion de spawn
+            LocalYawAngle = transform.eulerAngles.y;
             SetupLocalCamera();
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible   = false;
@@ -62,48 +64,42 @@ public class PlayerMovements : NetworkBehaviour
         }
     }
 
-    // =========================================================
-    // FIXED UPDATE — solo el HOST mueve todos los objetos
-    // El cliente NO simula movimiento local (evita doble velocidad)
-    // =========================================================
     public override void FixedUpdateNetwork()
     {
-        // Solo el host (StateAuthority) mueve los CharacterControllers
         if (!Object.HasStateAuthority) return;
 
         characterController.enabled = true;
 
         if (GetInput(out PlayerNetworkInput input))
         {
-            // Aplicar rotacion exacta del cliente
-            transform.rotation = Quaternion.Euler(0f, input.YawAngle, 0f);
+            // Aplicar rotacion del cliente — pero NO si es el jugador local del host
+            // porque HandleCamera() ya gestiona su rotacion en Update()
+            if (!Object.HasInputAuthority)
+                transform.rotation = Quaternion.Euler(0f, input.YawAngle, 0f);
 
             HandleMovement(input);
             ButtonsPrev = input.Buttons;
         }
         else
         {
-            // Sin input: solo gravedad y deceleracion
             HandleGravityOnly();
         }
 
-        // Publicar posicion y rotacion para todos los clientes
         NetworkedPosition  = transform.position;
         NetworkedRotationY = transform.eulerAngles.y;
     }
 
-    // =========================================================
-    // RENDER — todos los clientes aplican la posicion del host
-    // El host ya tiene la posicion correcta porque el la calcula
-    // =========================================================
     public override void Render()
     {
-        // El host no necesita aplicar — ya tiene la posicion correcta
         if (Object.HasStateAuthority) return;
 
-        // Tanto el cliente local como los remotos aplican la posicion del host
+        // Posicion siempre del host para todos los clientes
         transform.position = NetworkedPosition;
-        transform.rotation = Quaternion.Euler(0f, NetworkedRotationY, 0f);
+
+        // Rotacion: remotos usan NetworkedRotationY, local usa su propio yaw
+        if (!Object.HasInputAuthority)
+            transform.rotation = Quaternion.Euler(0f, NetworkedRotationY, 0f);
+        // El jugador local mantiene su rotacion de HandleCamera() — no se toca
     }
 
     // =========================================================
@@ -120,7 +116,11 @@ public class PlayerMovements : NetworkBehaviour
     // =========================================================
     private void HandleMovement(PlayerNetworkInput input)
     {
-        Vector3 dir       = GetMoveDirection(input.MoveDirection, input.YawAngle);
+        // Para el jugador local del host usar su rotacion actual del transform
+        // Para clientes remotos usar el YawAngle del input (su rotacion exacta)
+        float yaw = Object.HasInputAuthority ? transform.eulerAngles.y : input.YawAngle;
+
+        Vector3 dir       = GetMoveDirection(input.MoveDirection, yaw);
         Vector3 targetVel = dir * moveSpeed;
 
         float curSpd = new Vector3(currentVelocity.x, 0f, currentVelocity.z).magnitude;
@@ -171,6 +171,10 @@ public class PlayerMovements : NetworkBehaviour
     // =========================================================
     // CAMARA
     // =========================================================
+    // Yaw local — actualizado por HandleCamera(), leido por OnInput
+    // Static para que NetworkRunnerHandler pueda leerlo sin referencia directa
+    public static float LocalYawAngle = 0f;
+
     private void HandleCamera()
     {
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
@@ -178,7 +182,11 @@ public class PlayerMovements : NetworkBehaviour
 
         if (invertVertical) mouseY = -mouseY;
 
-        transform.Rotate(Vector3.up * mouseX);
+        // Acumular yaw local — independiente del transform networked
+        LocalYawAngle += mouseX;
+
+        // Aplicar al transform local para que el movimiento se oriente bien
+        transform.rotation = Quaternion.Euler(0f, LocalYawAngle, 0f);
 
         cameraRotationX -= mouseY;
         cameraRotationX  = Mathf.Clamp(cameraRotationX, -maxLookUpAngle, maxLookDownAngle);

@@ -17,7 +17,7 @@ TagManager:
   - Enemy
   - 
   - PostProcessing
-  - 
+  - Floor
   - FirstPersonWeapon
   - PhysicalAmmo
   - 
