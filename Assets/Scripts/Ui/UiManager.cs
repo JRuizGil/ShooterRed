@@ -4,103 +4,174 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Gestor central de UI
-/// Controla qué paneles están visibles en cada momento
+/// Gestor central de UI.
+/// Solo un canvas visible a la vez. Navega entre MainMenu, LobbyMenu,
+/// SettingsMenu, ExitMenu y ControlsMenu.
 /// </summary>
 public class UiManager : MonoBehaviour
 {
-    [SerializeField] private List<Canvas> canvasList = new List<Canvas>();
-    [SerializeField] private Canvas mainMenuCanvas;
-    [SerializeField] private Canvas gameplayCanvas;
-    [SerializeField] private Canvas pauseMenuCanvas;
+    public static UiManager Instance { get; private set; }
 
-    private int currentCanvasIndex = 0;
+    [Header("Menus principales")]
+    [SerializeField] private Canvas mainMenuCanvas;
+    [SerializeField] private Canvas lobbyMenuCanvas;
+    [SerializeField] private Canvas settingsMenuCanvas;
+    [SerializeField] private Canvas exitMenuCanvas;
+    [SerializeField] private Canvas controlsMenuCanvas;
+
+    // Lista interna — se rellena automáticamente en Awake
+    private List<Canvas> allCanvases = new List<Canvas>();
+
+    // Historial de navegación para poder volver atrás
+    private Stack<Canvas> navigationHistory = new Stack<Canvas>();
+    private Canvas currentCanvas;
+
+    // =========================================================
 
     private void Awake()
     {
-        // Desactivar todos los canvas
-        foreach (Canvas canvas in canvasList)
+        // Singleton
+        if (Instance != null && Instance != this)
         {
-            canvas.enabled = false;
+            Destroy(gameObject);
+            return;
         }
+        Instance = this;
+
+        // Registrar todos los canvas
+        RegisterCanvas(mainMenuCanvas);
+        RegisterCanvas(lobbyMenuCanvas);
+        RegisterCanvas(settingsMenuCanvas);
+        RegisterCanvas(exitMenuCanvas);
+        RegisterCanvas(controlsMenuCanvas);
+
+        // Ocultar todos al arrancar
+        HideAll();
     }
 
     private void Start()
     {
-        // Mostrar menú principal
-        if (mainMenuCanvas != null)
+        // El juego arranca en el MainMenu
+        ShowMainMenu();
+    }
+
+    // =========================================================
+    // REGISTRO
+    // =========================================================
+
+    private void RegisterCanvas(Canvas c)
+    {
+        if (c != null && !allCanvases.Contains(c))
+            allCanvases.Add(c);
+    }
+
+    // =========================================================
+    // NÚCLEO — solo un canvas activo a la vez
+    // =========================================================
+
+    /// <summary>
+    /// Muestra el canvas indicado y oculta todos los demás.
+    /// Guarda el canvas anterior en el historial para poder volver.
+    /// </summary>
+    public void Show(Canvas target)
+    {
+        if (target == null)
         {
-            ShowCanvas(mainMenuCanvas);
+            Debug.LogWarning("[UiManager] Show() llamado con canvas null");
+            return;
         }
-        else if (canvasList.Count > 0)
+
+        // Guardar en historial si hay un canvas activo
+        if (currentCanvas != null && currentCanvas != target)
+            navigationHistory.Push(currentCanvas);
+
+        foreach (Canvas c in allCanvases)
+            c.enabled = (c == target);
+
+        currentCanvas = target;
+        Debug.Log($"[UiManager] Mostrando: {target.name}");
+    }
+
+    /// <summary>
+    /// Vuelve al canvas anterior (tipo "botón atrás").
+    /// Si no hay historial, va al MainMenu.
+    /// </summary>
+    public void GoBack()
+    {
+        if (navigationHistory.Count > 0)
         {
-            ShowCanvas(canvasList[0]);
+            Canvas previous = navigationHistory.Pop();
+            // No guardar en historial al volver
+            foreach (Canvas c in allCanvases)
+                c.enabled = (c == previous);
+            currentCanvas = previous;
+            Debug.Log($"[UiManager] Volviendo a: {previous.name}");
         }
-
-        Debug.Log("[UiManager] Initialized");
-    }
-
-    /// <summary>
-    /// Mostrar un canvas específico
-    /// </summary>
-    public void ShowCanvas(Canvas canvas)
-    {
-        foreach (Canvas c in canvasList)
+        else
         {
-            c.enabled = (c == canvas);
-        }
-        Debug.Log($"[UiManager] Showing canvas: {canvas.name}");
-    }
-
-    /// <summary>
-    /// Mostrar canvas por índice
-    /// </summary>
-    public void ShowCanvasByIndex(int index)
-    {
-        if (index >= 0 && index < canvasList.Count)
-        {
-            ShowCanvas(canvasList[index]);
-            currentCanvasIndex = index;
+            ShowMainMenu();
         }
     }
 
     /// <summary>
-    /// Mostrar el canvas de gameplay
+    /// Oculta todos los canvas.
     /// </summary>
-    public void ShowGameplayUI()
+    public void HideAll()
     {
-        if (gameplayCanvas != null)
-            ShowCanvas(gameplayCanvas);
+        foreach (Canvas c in allCanvases)
+            c.enabled = false;
+        currentCanvas = null;
+    }
+
+    // =========================================================
+    // NAVEGACIÓN — llamar desde botones de Unity
+    // =========================================================
+
+    public void ShowMainMenu()
+    {
+        navigationHistory.Clear(); // MainMenu es la raíz, limpiar historial
+        Show(mainMenuCanvas);
+    }
+
+    public void ShowLobbyMenu()
+    {
+        Show(lobbyMenuCanvas);
+    }
+
+    public void ShowSettingsMenu()
+    {
+        Show(settingsMenuCanvas);
+    }
+
+    public void ShowExitMenu()
+    {
+        Show(exitMenuCanvas);
+    }
+
+    public void ShowControlsMenu()
+    {
+        Show(controlsMenuCanvas);
+    }
+
+    // =========================================================
+    // ACCIONES ESPECIALES
+    // =========================================================
+
+    /// <summary>
+    /// Confirmar salida del juego (llamar desde botón "Sí" en ExitMenu).
+    /// </summary>
+    public void QuitGame()
+    {
+        Debug.Log("[UiManager] Saliendo del juego...");
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     /// <summary>
-    /// Mostrar pausa
+    /// Getter del canvas actual (por si otros sistemas lo necesitan).
     /// </summary>
-    public void ShowPauseMenu()
-    {
-        if (pauseMenuCanvas != null)
-            pauseMenuCanvas.enabled = true;
-    }
-
-    /// <summary>
-    /// Ocultar pausa
-    /// </summary>
-    public void HidePauseMenu()
-    {
-        if (pauseMenuCanvas != null)
-            pauseMenuCanvas.enabled = false;
-    }
-
-    /// <summary>
-    /// Singleton
-    /// </summary>
-    public static UiManager Instance { get; private set; }
-
-    private void OnEnable()
-    {
-        if (Instance == null)
-            Instance = this;
-    }
+    public Canvas GetCurrentCanvas() => currentCanvas;
 }
-
-

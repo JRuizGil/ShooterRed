@@ -2,71 +2,116 @@ using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Gestor de inventario de armas del jugador.
-/// Sincroniza las armas equipadas entre todos los clientes.
-/// </summary>
 public class PlayerWeaponManager : NetworkBehaviour
 {
     [Header("Weapon System")]
     [SerializeField] private int maxWeaponSlots = 3;
-    [SerializeField] private Transform weaponHolderParent; // Parent para las armas activas
-    [SerializeField] private PlayerNetworkInput playerNetworkInput; // Referencia para enviar input
+    [SerializeField] private Transform weaponHolderParent;
 
-    // Armas del inventario
+    // ✅ FIX: NetworkArray en lugar de List<> local para sincronización real en red
+    [Networked, Capacity(3)]
+    public NetworkArray<NetworkObject> WeaponSlots => default;
+
+    // Lista local solo para referencia rápida en el cliente — se sincroniza desde WeaponSlots
     private List<BaseWeapon> weaponInventory = new List<BaseWeapon>();
-    
-    [Networked] public int CurrentWeaponSlot { get; set; } = 0;
-    [Networked] public int InventoryCount { get; set; } = 0;
 
-    // Eventos
+    [Networked] public int CurrentWeaponSlot { get; set; }
+    [Networked] public int InventoryCount { get; set; }
+
+    // ✅ FIX: Guardar botones del tick anterior como [Networked] para WasPressed correcto
+    [Networked] private NetworkButtons PreviousButtons { get; set; }
+
+    // ✅ FIX: Change detector para disparar eventos solo cuando cambia el estado de red
+    private int _lastRenderedSlot = -1;
+    private int _lastRenderedCount = -1;
+
     public delegate void OnWeaponChangeDelegate(BaseWeapon newWeapon, int slot);
     public delegate void OnInventoryChangeDelegate(int itemCount);
-
     public event OnWeaponChangeDelegate OnWeaponChanged;
     public event OnInventoryChangeDelegate OnInventoryChanged;
 
-    private void Start()
+    public override void Spawned()
     {
         if (weaponHolderParent == null)
         {
             weaponHolderParent = transform.Find("WeaponHolder");
             if (weaponHolderParent == null)
             {
-                // Crear GameObject automáticamente
                 GameObject holder = new GameObject("WeaponHolder");
                 holder.transform.SetParent(transform);
                 holder.transform.localPosition = Vector3.zero;
                 weaponHolderParent = holder.transform;
             }
         }
-        
-        
-    }
-    
 
-    /// <summary>
-    /// Añadir un arma al inventario
-    /// </summary>
+        // Reconstruir inventario local desde el array de red al hacer spawn (reconexiones, etc.)
+        RebuildLocalInventory();
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasInputAuthority) return;
+
+        if (GetInput(out PlayerNetworkInput input))
+        {
+            // ✅ FIX: GetPressed con los botones anteriores para detectar flanco ascendente
+            var pressed = input.Buttons.GetPressed(PreviousButtons);
+            PreviousButtons = input.Buttons;
+
+            if (pressed.IsSet(PlayerButtons.NextWeapon))
+                SwitchNextWeapon();
+
+            if (pressed.IsSet(PlayerButtons.PrevWeapon))
+                SwitchPreviousWeapon();
+        }
+    }
+
+    // ✅ FIX: Render() para disparar eventos de UI — se ejecuta en todos los clientes
+    public override void Render()
+    {
+        // Detectar cambio de arma equipada
+        if (CurrentWeaponSlot != _lastRenderedSlot)
+        {
+            _lastRenderedSlot = CurrentWeaponSlot;
+            OnWeaponChanged?.Invoke(GetCurrentWeapon(), CurrentWeaponSlot);
+        }
+
+        // Detectar cambio de inventario
+        if (InventoryCount != _lastRenderedCount)
+        {
+            _lastRenderedCount = InventoryCount;
+            OnInventoryChanged?.Invoke(InventoryCount);
+        }
+    }
+
     public bool AddWeapon(BaseWeapon weapon)
     {
+        if (weapon == null) return false;
+
         if (weaponInventory.Count >= maxWeaponSlots)
         {
             Debug.LogWarning("[PlayerWeaponManager] Inventario lleno!");
             return false;
         }
 
-        if (weapon == null)
+        weaponInventory.Add(weapon);
+
+        // ✅ Sincronizar también en el NetworkArray para que otros clientes lo vean
+        NetworkObject netObj = weapon.GetComponent<NetworkObject>();
+        if (netObj != null)
         {
-            Debug.LogWarning("[PlayerWeaponManager] Intento de añadir un arma nula!");
-            return false;
+            for (int i = 0; i < WeaponSlots.Length; i++)
+            {
+                if (WeaponSlots.Get(i) == null)
+                {
+                    WeaponSlots.Set(i, netObj);
+                    break;
+                }
+            }
         }
 
-        // Añadir a inventario
-        weaponInventory.Add(weapon);
         InventoryCount = weaponInventory.Count;
 
-        // Reparentar el arma
         if (weaponHolderParent != null)
         {
             weapon.transform.SetParent(weaponHolderParent);
@@ -74,139 +119,105 @@ public class PlayerWeaponManager : NetworkBehaviour
             weapon.transform.localRotation = Quaternion.identity;
         }
 
-        // Si es la primera arma, equiparla automáticamente
         if (weaponInventory.Count == 1)
-        {
             EquipWeapon(0);
-        }
 
-        Debug.Log($"[PlayerWeaponManager] Arma añadida: {weapon.GetWeaponName()}. Total en inventario: {weaponInventory.Count}");
-        OnInventoryChanged?.Invoke(weaponInventory.Count);
-
+        // Nota: OnInventoryChanged se dispara en Render() para todos los clientes
         return true;
     }
 
-    /// <summary>
-    /// Equipar un arma del inventario
-    /// </summary>
     public void EquipWeapon(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex >= weaponInventory.Count)
-        {
-            Debug.LogWarning($"[PlayerWeaponManager] Slot inválido: {slotIndex}");
-            return;
-        }
+        if (slotIndex < 0 || slotIndex >= weaponInventory.Count) return;
 
-        // Desequipar arma anterior
-        for (int i = 0; i < weaponInventory.Count; i++)
-        {
-            if (i != slotIndex && weaponInventory[i].IsEquipped())
-            {
-                weaponInventory[i].OnUnequip();
-            }
-        }
+        foreach (var w in weaponInventory)
+            if (w != null && w.IsEquipped()) w.OnUnequip();
 
-        // Equipar nueva arma
         CurrentWeaponSlot = slotIndex;
-        BaseWeapon currentWeapon = weaponInventory[slotIndex];
-        currentWeapon.OnEquip();
+        weaponInventory[slotIndex].OnEquip();
 
-        Debug.Log($"[PlayerWeaponManager] Arma equipada: {currentWeapon.GetWeaponName()}");
-        OnWeaponChanged?.Invoke(currentWeapon, slotIndex);
+        // Nota: OnWeaponChanged se dispara en Render() para todos los clientes
     }
 
-    /// <summary>
-    /// Cambiar a la siguiente arma
-    /// </summary>
     public void SwitchNextWeapon()
     {
-        if (weaponInventory.Count <= 1)
-        {
-            Debug.LogWarning("[PlayerWeaponManager] Solo hay 0-1 arma en inventario");
-            return;
-        }
-
-        int nextSlot = (CurrentWeaponSlot + 1) % weaponInventory.Count;
-        Debug.Log($"[PlayerWeaponManager] Cambiando de slot {CurrentWeaponSlot} a {nextSlot}");
-        EquipWeapon(nextSlot);
+        if (weaponInventory.Count <= 1) return;
+        EquipWeapon((CurrentWeaponSlot + 1) % weaponInventory.Count);
     }
 
-    /// <summary>
-    /// Cambiar a la arma anterior
-    /// </summary>
     public void SwitchPreviousWeapon()
     {
-        if (weaponInventory.Count <= 1)
-        {
-            Debug.LogWarning("[PlayerWeaponManager] Solo hay 0-1 arma en inventario");
-            return;
-        }
-
-        int prevSlot = (CurrentWeaponSlot - 1 + weaponInventory.Count) % weaponInventory.Count;
-        Debug.Log($"[PlayerWeaponManager] Cambiando de slot {CurrentWeaponSlot} a {prevSlot}");
-        EquipWeapon(prevSlot);
+        if (weaponInventory.Count <= 1) return;
+        EquipWeapon((CurrentWeaponSlot - 1 + weaponInventory.Count) % weaponInventory.Count);
     }
 
-    /// <summary>
-    /// Obtener el arma actualmente equipada
-    /// </summary>
-    public BaseWeapon GetCurrentWeapon()
-    {
-        if (CurrentWeaponSlot >= 0 && CurrentWeaponSlot < weaponInventory.Count)
-        {
-            return weaponInventory[CurrentWeaponSlot];
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Obtener el inventario completo
-    /// </summary>
-    public List<BaseWeapon> GetInventory()
-    {
-        return new List<BaseWeapon>(weaponInventory);
-    }
-
-    /// <summary>
-    /// Obtener cantidad de armas en el inventario
-    /// </summary>
-    public int GetWeaponCount()
-    {
-        return weaponInventory.Count;
-    }
-
-    /// <summary>
-    /// Remover un arma del inventario
-    /// </summary>
+    // ✅ FIX: RemoveWeapon ahora desequipa correctamente y re-equipa el siguiente slot válido
     public void RemoveWeapon(int slotIndex)
     {
         if (slotIndex < 0 || slotIndex >= weaponInventory.Count) return;
 
-        BaseWeapon removedWeapon = weaponInventory[slotIndex];
+        BaseWeapon weaponToRemove = weaponInventory[slotIndex];
+
+        // Desmontar del holder y desactivar
+        if (weaponToRemove != null)
+        {
+            if (weaponToRemove.IsEquipped())
+                weaponToRemove.OnUnequip();
+
+            weaponToRemove.transform.SetParent(null);
+        }
+
+        // Limpiar del NetworkArray
+        NetworkObject netObj = weaponToRemove != null ? weaponToRemove.GetComponent<NetworkObject>() : null;
+        if (netObj != null)
+        {
+            for (int i = 0; i < WeaponSlots.Length; i++)
+            {
+                if (WeaponSlots.Get(i) == netObj)
+                {
+                    WeaponSlots.Set(i, null);
+                    break;
+                }
+            }
+        }
+
         weaponInventory.RemoveAt(slotIndex);
         InventoryCount = weaponInventory.Count;
 
-        if (CurrentWeaponSlot >= weaponInventory.Count)
+        // Re-equipar el slot más cercano válido
+        if (weaponInventory.Count > 0)
         {
-            CurrentWeaponSlot = Mathf.Max(0, weaponInventory.Count - 1);
+            int nextSlot = Mathf.Clamp(slotIndex, 0, weaponInventory.Count - 1);
+            EquipWeapon(nextSlot);
+        }
+        else
+        {
+            CurrentWeaponSlot = 0;
         }
 
-        Debug.Log($"[PlayerWeaponManager] Arma removida: {removedWeapon.GetWeaponName()}");
-        OnInventoryChanged?.Invoke(weaponInventory.Count);
+        // Nota: OnInventoryChanged se dispara en Render()
     }
 
-    public override void FixedUpdateNetwork()
+    public BaseWeapon GetCurrentWeapon() =>
+        CurrentWeaponSlot >= 0 && CurrentWeaponSlot < weaponInventory.Count
+            ? weaponInventory[CurrentWeaponSlot] : null;
+
+    public List<BaseWeapon> GetInventory() => new List<BaseWeapon>(weaponInventory);
+    public int GetWeaponCount() => weaponInventory.Count;
+
+    // Reconstruye la lista local desde el NetworkArray (útil en reconexión o late-join)
+    private void RebuildLocalInventory()
     {
-        if (!Object.HasInputAuthority) return;
-
-        // Manejar cambio de armas con números
-        if (Input.GetKeyDown(KeyCode.E))
-            SwitchNextWeapon();
-
-        if (Input.GetKeyDown(KeyCode.Q))
-            SwitchPreviousWeapon();
-
-        // Las armas manejan su propio input en sus FixedUpdateNetwork
-        playerNetworkInput = GetComponent<PlayerNetworkInput>();
+        weaponInventory.Clear();
+        for (int i = 0; i < WeaponSlots.Length; i++)
+        {
+            NetworkObject netObj = WeaponSlots.Get(i);
+            if (netObj != null)
+            {
+                BaseWeapon weapon = netObj.GetComponent<BaseWeapon>();
+                if (weapon != null)
+                    weaponInventory.Add(weapon);
+            }
+        }
     }
 }

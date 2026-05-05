@@ -2,16 +2,19 @@ using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using System.Threading.Tasks;
 using System.Collections.Generic;
 using System;
 
 public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
 {
     private NetworkRunner runner;
-    
+
     [SerializeField] private NetworkObject playerPrefab;
-    
+    [SerializeField] private SpawnPointManager spawnPointManager;
+
+    // Registro de jugadores ya spawneados — evita duplicados
+    private Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new Dictionary<PlayerRef, NetworkObject>();
+
     public static NetworkRunnerHandler Instance { get; private set; }
 
     private void Awake()
@@ -25,213 +28,337 @@ public class NetworkRunnerHandler : MonoBehaviour, INetworkRunnerCallbacks
         DontDestroyOnLoad(gameObject);
     }
 
-    public async void StartGame(GameMode mode, string sessionName)
+    // =========================================================
+    // CONEXIÓN AL LOBBY DE FUSION (descubrimiento de sesiones)
+    // =========================================================
+    public async void ConnectToLobby()
     {
         if (runner != null)
-            return;
+        {
+            await runner.Shutdown();
+            runner = null;
+        }
 
-        runner = gameObject.GetComponent<NetworkRunner>();
-        if (runner == null) runner = gameObject.AddComponent<NetworkRunner>();
+        runner = GetOrAddRunner();
+        runner.ProvideInput = false;
+        runner.AddCallbacks(this);
+
+        var result = await runner.JoinSessionLobby(SessionLobby.ClientServer);
+
+        if (!result.Ok)
+        {
+            Debug.LogError($"[NetworkRunnerHandler] Error lobby: {result.ShutdownReason}");
+            LobbyManager.Instance?.NotifyNetworkError($"Error: {result.ShutdownReason}");
+        }
+        else
+        {
+            Debug.Log("[NetworkRunnerHandler] Conectado al lobby de Fusion");
+        }
+    }
+
+    // =========================================================
+    // CREAR SALA — host sin cargar escena de juego todavía
+    // =========================================================
+    public async void CreateLobbySession(string sessionName)
+    {
+        await ShutdownRunnerIfRunning();
+
+        runner = GetOrAddRunner();
         runner.ProvideInput = true;
         runner.AddCallbacks(this);
 
-        // Load PlayerScene (build index 2)
-        var scene = SceneRef.FromIndex(2);
-
+        int currentScene = SceneManager.GetActiveScene().buildIndex;
         var result = await runner.StartGame(new StartGameArgs()
         {
-            GameMode = mode,
-            SessionName = sessionName,
-            Scene = scene,
+            GameMode     = GameMode.Host,
+            SessionName  = sessionName,
+            Scene        = SceneRef.FromIndex(currentScene),
             SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
         });
-        
+
         if (!result.Ok)
         {
-            Debug.LogError("Error: " + result.ShutdownReason);
+            Debug.LogError($"[NetworkRunnerHandler] Error crear sala: {result.ShutdownReason}");
+            LobbyManager.Instance?.NotifyNetworkError($"Error: {result.ShutdownReason}");
         }
-        
-    }
-
-    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
-    {
-        Debug.Log($"[Network] Player joined: {player}");
-        if (LobbyManager.Instance != null)
+        else
         {
-            LobbyManager.Instance.OnPlayerJoinedNetwork(runner, player);
+            Debug.Log($"[NetworkRunnerHandler] Sala creada: {sessionName}");
         }
     }
 
-    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+    // =========================================================
+    // UNIRSE A SALA existente
+    // =========================================================
+    public async void JoinLobbySession(string sessionName)
     {
-        Debug.Log($"[Network] Player left: {player}");
-        if (LobbyManager.Instance != null)
+        await ShutdownRunnerIfRunning();
+
+        runner = GetOrAddRunner();
+        runner.ProvideInput = true;
+        runner.AddCallbacks(this);
+
+        int currentScene = SceneManager.GetActiveScene().buildIndex;
+        var result = await runner.StartGame(new StartGameArgs()
         {
-            LobbyManager.Instance.OnPlayerLeftNetwork(runner, player);
+            GameMode     = GameMode.Client,
+            SessionName  = sessionName,
+            Scene        = SceneRef.FromIndex(currentScene),
+            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+        });
+
+        if (!result.Ok)
+        {
+            Debug.LogError($"[NetworkRunnerHandler] Error unirse: {result.ShutdownReason}");
+            LobbyManager.Instance?.NotifyNetworkError($"Error: {result.ShutdownReason}");
+        }
+        else
+        {
+            Debug.Log($"[NetworkRunnerHandler] Unido a sala: {sessionName}");
         }
     }
 
-    public void OnInput(NetworkRunner runner, NetworkInput input)
+    // =========================================================
+    // CARGAR ESCENA DE JUEGO — solo el host
+    // =========================================================
+    public void LoadGameScene()
     {
-        var playerNetworkInput = new PlayerNetworkInput();
-        
-        // Capturar dirección de movimiento
-        playerNetworkInput.MoveDirection = new Vector2(
-            Input.GetAxis("Horizontal"),
-            Input.GetAxis("Vertical")
-        );
-        
-        // Capturar botones
-        if (Input.GetKey(KeyCode.Space))
-            playerNetworkInput.Buttons.Set(PlayerButtons.Jump, true);
-        if (Input.GetMouseButton(0))
-            playerNetworkInput.Buttons.Set(PlayerButtons.Fire, true);
-        
-        // Debug para verificar que se está capturando input
-        if (playerNetworkInput.MoveDirection.sqrMagnitude > 0)
+        if (runner == null || !runner.IsRunning)
         {
-            Debug.Log($"[NetworkRunnerHandler] Input capturado: {playerNetworkInput.MoveDirection}");
-        }
-        
-        // Enviar el input al NetworkRunner
-        input.Set(playerNetworkInput);
-    }
-    
-    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
-    {
-        Debug.Log($"[Network] Shutdown: {shutdownReason}");
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnNetworkShutdown(runner, shutdownReason);
-        }
-    }
-
-    public void OnConnectedToServer(NetworkRunner runner)
-    {
-        Debug.Log("[Network] Connected to server");
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnConnectedToServer(runner);
-        }
-    }
-
-    public void OnDisconnectedFromServer(NetworkRunner runner)
-    {
-        Debug.Log("[Network] Disconnected from server");
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnDisconnectedFromServer(runner);
-        }
-    }
-
-    public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
-    public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
-    {
-        Debug.LogError($"[Network] Connect failed: {reason}");
-    }
-
-    public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
-    
-    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
-    {
-        Debug.Log($"[Network] Session list updated: {sessionList.Count} sessions");
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnSessionListUpdatedNetwork(sessionList);
-        }
-    }
-
-    public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
-    
-    public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
-    {
-        Debug.Log("[Network] Host migration detected");
-    }
-
-    public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ArraySegment<byte> data)
-    {
-    }
-
-    public void OnSceneLoadDone(NetworkRunner runner)
-    {
-        Debug.Log("[Network] Scene load done");
-        InstancePlayer();
-    }
-
-    public void OnSceneLoadStart(NetworkRunner runner)
-    {
-        Debug.Log("[Network] Scene load start");
-    }
-
-    public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
-    {
-        // No se necesita implementación para Server/Host Mode básico
-    }
-
-    public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
-    {
-        // No se necesita implementación para Server/Host Mode básico
-    }   
-
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void InstancePlayer()
-    {
-        // Verificar que estamos en la escena PlayerScene
-        if (SceneManager.GetActiveScene().name != "PlayerScene")
-        {
-            Debug.LogWarning("[NetworkRunnerHandler] InstancePlayer() called but scene is not PlayerScene");
+            Debug.LogError("[NetworkRunnerHandler] No hay runner activo");
             return;
         }
+        runner.LoadScene(SceneRef.FromIndex(2));
+        Debug.Log("[NetworkRunnerHandler] Cargando escena de juego...");
+    }
 
-        if (runner == null)
+    // =========================================================
+    // SPAWN
+    // =========================================================
+
+    // OnPlayerJoined: spawnear si la escena de juego ya está activa
+    // (jugadores que entran DESPUÉS de que la partida empezó)
+    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+    {
+        Debug.Log($"[NetworkRunnerHandler] OnPlayerJoined: {player} | " +
+                  $"IsServer:{runner.IsServer} | IsGameScene:{IsGameScene()} | " +
+                  $"YaSpawneado:{spawnedPlayers.ContainsKey(player)}");
+
+        if (runner.IsServer && IsGameScene() && !spawnedPlayers.ContainsKey(player))
         {
-            Debug.LogError("[NetworkRunnerHandler] NetworkRunner no disponible");
+            Debug.Log($"[NetworkRunnerHandler] Spawneando a {player} desde OnPlayerJoined");
+            SpawnPlayer(runner, player);
+        }
+
+        LobbyManager.Instance?.OnPlayerJoinedNetwork(runner, player);
+    }
+
+    // OnSceneLoadDone: spawnear todos los jugadores activos al cargar la escena
+    // (carga inicial cuando el host pulsa "Iniciar Partida")
+    public void OnSceneLoadDone(NetworkRunner runner)
+    {
+        Debug.Log($"[NetworkRunnerHandler] OnSceneLoadDone: {SceneManager.GetActiveScene().name} " +
+                  $"buildIndex:{SceneManager.GetActiveScene().buildIndex} IsServer:{runner.IsServer}");
+
+        if (!IsGameScene()) return;
+        if (!runner.IsServer) return;
+
+        foreach (PlayerRef player in runner.ActivePlayers)
+        {
+            if (!spawnedPlayers.ContainsKey(player))
+            {
+                Debug.Log($"[NetworkRunnerHandler] OnSceneLoadDone → Spawneando {player}");
+                SpawnPlayer(runner, player);
+            }
+            else
+            {
+                Debug.Log($"[NetworkRunnerHandler] OnSceneLoadDone → {player} ya spawneado");
+            }
+        }
+    }
+
+    private bool IsGameScene()
+    {
+        return SceneManager.GetActiveScene().buildIndex == 2;
+    }
+
+    private void SpawnPlayer(NetworkRunner runner, PlayerRef player)
+    {
+        if (spawnedPlayers.ContainsKey(player))
+        {
+            Debug.LogWarning($"[NetworkRunnerHandler] {player} ya spawneado, ignorando");
             return;
         }
 
         if (playerPrefab == null)
         {
-            Debug.LogError("[NetworkRunnerHandler] Player prefab no asignado en el inspector");
+            Debug.LogError("[NetworkRunnerHandler] playerPrefab no asignado en el Inspector");
             return;
         }
 
-        // Generar posición aleatoria dentro de 100 unidades a la redonda
-        Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * 100f;
-        Vector3 spawnPosition = new Vector3(randomCircle.x, 1f, randomCircle.y);
+        if (spawnPointManager == null)
+            spawnPointManager = FindFirstObjectByType<SpawnPointManager>();
 
-        Debug.Log($"[NetworkRunnerHandler] InstancePlayer() - Spawnando jugador en posición: {spawnPosition}");
+        Vector3 spawnPos;
+        Quaternion spawnRot;
 
-        // Hacer spawn networkizado del prefab del jugador
-        NetworkObject spawnedPlayer = runner.Spawn(
-            playerPrefab,
-            spawnPosition,
-            Quaternion.identity,
-            runner.LocalPlayer
-        );
-
-        if (spawnedPlayer == null)
+        if (spawnPointManager != null && spawnPointManager.GetSpawnPointCount() > 0)
         {
-            Debug.LogError("[NetworkRunnerHandler] Falló el spawn del jugador");
+            (spawnPos, spawnRot) = spawnPointManager.GetNextSpawnPoint();
         }
         else
         {
-            Debug.Log($"[NetworkRunnerHandler] Jugador spawneado exitosamente: {spawnedPlayer.InputAuthority}");
+            Vector2 r = UnityEngine.Random.insideUnitCircle * 5f;
+            spawnPos = new Vector3(r.x, 1f, r.y);
+            spawnRot = Quaternion.identity;
+            Debug.LogWarning("[NetworkRunnerHandler] SpawnPointManager no encontrado");
+        }
+
+        NetworkObject obj = runner.Spawn(playerPrefab, spawnPos, spawnRot, player);
+
+        if (obj == null)
+        {
+            Debug.LogError($"[NetworkRunnerHandler] Falló el spawn de {player}");
+        }
+        else
+        {
+            spawnedPlayers[player] = obj;
+            Debug.Log($"[NetworkRunnerHandler] {player} spawneado en {spawnPos}");
         }
     }
+
+    // =========================================================
+    // CALLBACKS
+    // =========================================================
+
+    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+    {
+        Debug.Log($"[NetworkRunnerHandler] Player left: {player}");
+
+        if (spawnedPlayers.TryGetValue(player, out NetworkObject obj))
+        {
+            if (obj != null) runner.Despawn(obj);
+            spawnedPlayers.Remove(player);
+        }
+
+        LobbyManager.Instance?.OnPlayerLeftNetwork(runner, player);
+    }
+
+    public void OnInput(NetworkRunner runner, NetworkInput input)
+    {
+        var data = new PlayerNetworkInput();
+
+        data.MoveDirection = new Vector2(
+            Input.GetAxis("Horizontal"),
+            Input.GetAxis("Vertical")
+        );
+
+        // ✅ Enviar la rotación Y actual del jugador local con el input
+        // El host la usará para calcular la dirección de movimiento correcta
+        // en vez de usar su rotación interpolada (que tiene retraso)
+        var localPlayer = runner.GetPlayerObject(runner.LocalPlayer);
+        if (localPlayer != null)
+            data.YawAngle = localPlayer.transform.eulerAngles.y;
+
+        if (Input.GetKey(KeyCode.Space))    data.Buttons.Set(PlayerButtons.Jump, true);
+        if (Input.GetMouseButton(0))        data.Buttons.Set(PlayerButtons.Fire, true);
+        if (Input.GetKey(KeyCode.E))        data.Buttons.Set(PlayerButtons.NextWeapon, true);
+        if (Input.GetKey(KeyCode.Q))        data.Buttons.Set(PlayerButtons.PrevWeapon, true);
+
+        input.Set(data);
+    }
+
+    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    {
+        Debug.Log($"[NetworkRunnerHandler] Shutdown: {shutdownReason}");
+        spawnedPlayers.Clear();
+        LobbyManager.Instance?.OnNetworkShutdown(runner, shutdownReason);
+    }
+
+    public void OnConnectedToServer(NetworkRunner runner)
+    {
+        Debug.Log("[NetworkRunnerHandler] Conectado al servidor");
+        LobbyManager.Instance?.NotifyConnectedToServer(runner);
+    }
+
+    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+    {
+        Debug.Log($"[NetworkRunnerHandler] Desconectado: {reason}");
+        LobbyManager.Instance?.NotifyDisconnectedFromServer(runner);
+    }
+
+    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
+    {
+        Debug.Log($"[NetworkRunnerHandler] Sesiones: {sessionList.Count}");
+        LobbyManager.Instance?.OnSessionListUpdatedNetwork(sessionList);
+    }
+
+    public void OnSceneLoadStart(NetworkRunner runner)
+    {
+        Debug.Log("[NetworkRunnerHandler] Cargando escena...");
+        // Limpiar registro al cambiar de escena para permitir re-spawn limpio
+        spawnedPlayers.Clear();
+    }
+
+    // Mantener por compatibilidad
+    public void InstancePlayer()
+    {
+        if (runner != null && runner.IsServer)
+            SpawnPlayer(runner, runner.LocalPlayer);
+    }
+
+    public async void StartGame(GameMode mode, string sessionName)
+    {
+        await ShutdownRunnerIfRunning();
+        runner = GetOrAddRunner();
+        runner.ProvideInput = true;
+        runner.AddCallbacks(this);
+
+        var result = await runner.StartGame(new StartGameArgs()
+        {
+            GameMode     = mode,
+            SessionName  = sessionName,
+            Scene        = SceneRef.FromIndex(2),
+            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+        });
+
+        if (!result.Ok)
+        {
+            Debug.LogError($"[NetworkRunnerHandler] Error StartGame: {result.ShutdownReason}");
+            LobbyManager.Instance?.NotifyNetworkError($"Error: {result.ShutdownReason}");
+        }
+    }
+
+    private async System.Threading.Tasks.Task ShutdownRunnerIfRunning()
+    {
+        if (runner != null && runner.IsRunning)
+        {
+            await runner.Shutdown();
+            runner = null;
+        }
+    }
+
+    private NetworkRunner GetOrAddRunner()
+    {
+        NetworkRunner r = gameObject.GetComponent<NetworkRunner>();
+        if (r == null) r = gameObject.AddComponent<NetworkRunner>();
+        return r;
+    }
+
+    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
+    public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+    public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
+    {
+        Debug.LogError($"[NetworkRunnerHandler] Conexión fallida: {reason}");
+    }
+    public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
+    public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
+    public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
+    {
+        Debug.Log("[NetworkRunnerHandler] Host migration");
+    }
+    public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
+    public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
+    public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+    public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
 }

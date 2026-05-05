@@ -19,9 +19,10 @@ public class AutomaticPistol : MonoBehaviour
             bulletPool.Add(bullet);
         }
     }
+    
     void Update()
     {
-        // Semiautomático (clic izquierdo)
+        // Semiautomï¿½tico (clic izquierdo)
         if (Input.GetMouseButtonDown(0))
         {
             Shoot();

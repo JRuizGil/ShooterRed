@@ -7,285 +7,394 @@ using TMPro;
 
 public class LobbyUIFusion : MonoBehaviour
 {
-    [Header("UI References")]
-    [SerializeField] private Transform sessionListContainer; // Contenedor para items de lista
-    [SerializeField] private Prefab sessionListItemPrefab; // Prefab para cada item de la lista
-    [SerializeField] private TextMeshProUGUI sessionCountText; // Mostrar cantidad de sesiones
-    [SerializeField] private TextMeshProUGUI playerCountText; // Mostrar jugadores en sesión actual
+    [Header("Paneles principales")]
+    [SerializeField] private GameObject mainMenuPanel;      // Panel con botones Crear/Unirse
+    [SerializeField] private GameObject lobbyWaitPanel;     // Panel de espera tras crear sala (solo host)
+    [SerializeField] private GameObject sessionListPanel;   // Panel con lista de salas disponibles
+
+    [Header("Crear sala")]
+    [SerializeField] private TMP_InputField createRoomInput;
+    [SerializeField] private Button createRoomButton;
+
+    [Header("Lista de sesiones")]
+    [SerializeField] private Transform sessionListContainer;    // Scroll View > Viewport > Content
+    [SerializeField] private GameObject sessionListItemPrefab;  // Prefab: botón con TextMeshProUGUI
+    [SerializeField] private TextMeshProUGUI sessionCountText;
     [SerializeField] private Button refreshSessionsButton;
-    [SerializeField] private Button startMatchButton;
+    [SerializeField] private Button showSessionListButton;      // Botón "Ver salas disponibles"
+
+    [Header("Panel de espera (host)")]
+    [SerializeField] private TextMeshProUGUI waitingRoomNameText;
+    [SerializeField] private TextMeshProUGUI playerCountText;
+    [SerializeField] private Button startMatchButton;           // Solo visible/activo para el host
+    [SerializeField] private Button cancelRoomButton;
+
+    [Header("Estado")]
     [SerializeField] private TextMeshProUGUI statusText;
-    [SerializeField] private GameObject lobbyPanel; // Panel del lobby que se activa/desactiva
 
     private List<GameObject> sessionListItems = new List<GameObject>();
-    private NetworkRunner currentRunner;
 
+    // =====================================================================
     private void Start()
     {
-        // Suscribirse a eventos del LobbyManager
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnSessionListChanged += RefreshSessionList;
-            LobbyManager.Instance.OnPlayerJoinedSession += OnPlayerJoined;
-            LobbyManager.Instance.OnPlayerLeftSession += OnPlayerLeft;
-            LobbyManager.Instance.OnServerConnected += OnConnectedToServer;
-            LobbyManager.Instance.OnServerDisconnected += OnDisconnectedFromServer;
-            LobbyManager.Instance.OnNetworkError += OnNetworkError;
-        }
+        SubscribeToLobbyEvents();
+        SetupButtons();
 
-        // Conectar botones
-        if (refreshSessionsButton != null)
-        {
-            refreshSessionsButton.onClick.AddListener(RefreshSessionListManual);
-        }
-
-        if (startMatchButton != null)
-        {
-            startMatchButton.onClick.AddListener(OnStartMatchButton);
-        }
-
-        // Estado inicial
-        UpdateStatus("En espera de conexión");
+        // Mostrar el menú principal al inicio
+        ShowMainMenu();
+        UpdateStatus("Conectando al lobby...");
     }
 
     private void OnDestroy()
     {
-        // Desuscribirse de eventos
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.OnSessionListChanged -= RefreshSessionList;
-            LobbyManager.Instance.OnPlayerJoinedSession -= OnPlayerJoined;
-            LobbyManager.Instance.OnPlayerLeftSession -= OnPlayerLeft;
-            LobbyManager.Instance.OnServerConnected -= OnConnectedToServer;
-            LobbyManager.Instance.OnServerDisconnected -= OnDisconnectedFromServer;
-            LobbyManager.Instance.OnNetworkError -= OnNetworkError;
-        }
+        UnsubscribeFromLobbyEvents();
+    }
+
+    // =====================================================================
+    // SUSCRIPCIÓN DE EVENTOS
+    // =====================================================================
+
+    private void SubscribeToLobbyEvents()
+    {
+        if (LobbyManager.Instance == null) return;
+        LobbyManager.Instance.OnSessionListChanged  += OnSessionListReceived;
+        LobbyManager.Instance.OnPlayerJoinedSession += OnPlayerJoined;
+        LobbyManager.Instance.OnPlayerLeftSession   += OnPlayerLeft;
+        LobbyManager.Instance.OnServerConnected     += OnConnectedToServer;
+        LobbyManager.Instance.OnServerDisconnected  += OnDisconnectedFromServer;
+        LobbyManager.Instance.OnNetworkError        += OnNetworkError;
+    }
+
+    private void UnsubscribeFromLobbyEvents()
+    {
+        if (LobbyManager.Instance == null) return;
+        LobbyManager.Instance.OnSessionListChanged  -= OnSessionListReceived;
+        LobbyManager.Instance.OnPlayerJoinedSession -= OnPlayerJoined;
+        LobbyManager.Instance.OnPlayerLeftSession   -= OnPlayerLeft;
+        LobbyManager.Instance.OnServerConnected     -= OnConnectedToServer;
+        LobbyManager.Instance.OnServerDisconnected  -= OnDisconnectedFromServer;
+        LobbyManager.Instance.OnNetworkError        -= OnNetworkError;
+    }
+
+    // =====================================================================
+    // SETUP DE BOTONES
+    // =====================================================================
+
+    private void SetupButtons()
+    {
+        if (createRoomButton != null)
+            createRoomButton.onClick.AddListener(OnCreateRoomClicked);
 
         if (refreshSessionsButton != null)
-        {
-            refreshSessionsButton.onClick.RemoveListener(RefreshSessionListManual);
-        }
+            refreshSessionsButton.onClick.AddListener(OnRefreshClicked);
+
+        if (showSessionListButton != null)
+            showSessionListButton.onClick.AddListener(ShowSessionListPanel);
 
         if (startMatchButton != null)
-        {
-            startMatchButton.onClick.RemoveListener(OnStartMatchButton);
-        }
+            startMatchButton.onClick.AddListener(OnStartMatchClicked);
+
+        if (cancelRoomButton != null)
+            cancelRoomButton.onClick.AddListener(OnCancelRoomClicked);
     }
 
-    /// <summary>
-    /// Actualizar lista de sesiones disponibles
-    /// </summary>
-    private void RefreshSessionList(List<SessionInfo> sessions)
+    // =====================================================================
+    // NAVEGACIÓN DE PANELES
+    // =====================================================================
+
+    private void ShowMainMenu()
     {
-        Debug.Log($"[LobbyUI] Refreshing session list: {sessions.Count} sessions");
-
-        // Limpiar lista anterior
-        foreach (GameObject item in sessionListItems)
-        {
-            Destroy(item);
-        }
-        sessionListItems.Clear();
-
-        // Crear items para cada sesión
-        foreach (SessionInfo session in sessions)
-        {
-            CreateSessionListItem(session);
-        }
-
-        // Actualizar contador
-        if (sessionCountText != null)
-        {
-            sessionCountText.text = $"Salas disponibles: {sessions.Count}";
-        }
-
-        UpdateStatus($"{sessions.Count} sala(s) disponible(s)");
+        SetPanelActive(mainMenuPanel, true);
+        SetPanelActive(lobbyWaitPanel, false);
+        SetPanelActive(sessionListPanel, false);
     }
 
-    /// <summary>
-    /// Crear un item de la lista para una sesión
-    /// </summary>
-    private void CreateSessionListItem(SessionInfo session)
+    private void ShowLobbyWaitPanel(string roomName)
     {
-        if (sessionListContainer == null)
+        SetPanelActive(mainMenuPanel, false);
+        SetPanelActive(lobbyWaitPanel, true);
+        SetPanelActive(sessionListPanel, false);
+
+        if (waitingRoomNameText != null)
+            waitingRoomNameText.text = $"Sala: {roomName}";
+
+        // El botón de iniciar solo es interactivo para el host
+        if (startMatchButton != null)
+            startMatchButton.interactable = LobbyManager.Instance != null && LobbyManager.Instance.IsHost();
+    }
+
+    private void ShowSessionListPanel()
+    {
+        SetPanelActive(mainMenuPanel, false);
+        SetPanelActive(lobbyWaitPanel, false);
+        SetPanelActive(sessionListPanel, true);
+
+        // Refrescar la lista al mostrar el panel
+        OnRefreshClicked();
+    }
+
+    private void SetPanelActive(GameObject panel, bool active)
+    {
+        if (panel != null) panel.SetActive(active);
+    }
+
+    // =====================================================================
+    // BOTÓN: CREAR SALA
+    // =====================================================================
+
+    private void OnCreateRoomClicked()
+    {
+        if (createRoomInput == null || string.IsNullOrEmpty(createRoomInput.text))
         {
-            Debug.LogWarning("[LobbyUI] Session list container not assigned");
+            UpdateStatus("Escribe un nombre para la sala");
             return;
         }
 
-        // Crear item (por ahora, un botón simple con text)
-        // En un proyecto real, usarías un prefab instanciable
-        GameObject itemObj = new GameObject($"SessionItem_{session.Name}");
-        itemObj.transform.SetParent(sessionListContainer, false);
+        string roomName = createRoomInput.text.Trim();
+        if (string.IsNullOrEmpty(roomName))
+        {
+            UpdateStatus("El nombre de la sala no puede estar vacío");
+            return;
+        }
 
-        // Crear layout
-        LayoutElement layout = itemObj.AddComponent<LayoutElement>();
-        layout.preferredHeight = 50;
+        Debug.Log($"[LobbyUI] Creando sala: {roomName}");
+        LobbyManager.Instance?.CreateRoom(roomName);
 
-        // Crear botón
-        Button btn = itemObj.AddComponent<Button>();
-        ColorBlock colors = btn.colors;
-        colors.normalColor = Color.gray;
-        colors.highlightedColor = Color.white;
-        btn.colors = colors;
+        // Ir al panel de espera del host
+        ShowLobbyWaitPanel(roomName);
+        UpdateStatus($"Sala \"{roomName}\" creada. Esperando jugadores...");
+    }
 
-        // Crear text para mostrar nombre y jugadores
-        TextMeshProUGUI btnText = itemObj.AddComponent<TextMeshProUGUI>();
-        btnText.text = $"{session.Name} ({session.PlayerCount})";
-        btnText.color = Color.white;
+    // =====================================================================
+    // BOTÓN: REFRESCAR LISTA DE SESIONES
+    // =====================================================================
 
-        // Conectar click al método de unirse
-        SessionInfo sessionCopy = session; // Captura para closure
-        btn.onClick.AddListener(() => OnSessionItemClicked(sessionCopy));
+    private void OnRefreshClicked()
+    {
+        Debug.Log("[LobbyUI] Refrescando lista de sesiones");
+
+        if (LobbyManager.Instance != null)
+        {
+            // Obtener la lista ya cacheada en LobbyManager
+            var sessions = LobbyManager.Instance.GetAvailableSessions();
+            RebuildSessionList(sessions);
+
+            // Además reconectar al lobby de Fusion para forzar actualización
+            LobbyManager.Instance.ConnectToFusionLobby();
+        }
+
+        UpdateStatus("Buscando salas...");
+    }
+
+    // =====================================================================
+    // LISTA DE SESIONES
+    // =====================================================================
+
+    // Llamado automáticamente por el evento de LobbyManager cuando Fusion
+    // actualiza la lista (se llama periódicamente sin necesidad de polling).
+    private void OnSessionListReceived(List<SessionInfo> sessions)
+    {
+        Debug.Log($"[LobbyUI] Sesiones recibidas: {sessions.Count}");
+        RebuildSessionList(sessions);
+        UpdateStatus($"{sessions.Count} sala(s) disponible(s)");
+    }
+
+    private void RebuildSessionList(List<SessionInfo> sessions)
+    {
+        // Limpiar items anteriores
+        foreach (GameObject item in sessionListItems)
+            Destroy(item);
+        sessionListItems.Clear();
+
+        if (sessionCountText != null)
+            sessionCountText.text = $"Salas disponibles: {sessions.Count}";
+
+        if (sessions.Count == 0)
+        {
+            SpawnSessionItem("(No hay salas disponibles)", default, false);
+            return;
+        }
+
+        foreach (SessionInfo session in sessions)
+            SpawnSessionItem($"{session.Name}  [{session.PlayerCount}/{session.MaxPlayers}]", session, true);
+    }
+
+    // Crea un botón por cada sesión en el scroll view
+    // isClickable = false para el item "no hay salas"
+    private void SpawnSessionItem(string label, SessionInfo session, bool isClickable)
+    {
+        if (sessionListContainer == null)
+        {
+            Debug.LogError("[LobbyUI] sessionListContainer no asignado en el Inspector");
+            return;
+        }
+
+        GameObject itemObj;
+
+        if (sessionListItemPrefab != null)
+        {
+            itemObj = Instantiate(sessionListItemPrefab, sessionListContainer);
+        }
+        else
+        {
+            itemObj = CreateDynamicSessionButton();
+        }
+
+        itemObj.name = $"SessionItem_{label}";
+
+        TextMeshProUGUI tmp = itemObj.GetComponentInChildren<TextMeshProUGUI>();
+        if (tmp != null) tmp.text = label;
+
+        Button btn = itemObj.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.interactable = isClickable;
+
+            if (isClickable)
+            {
+                SessionInfo captured = session;
+                btn.onClick.AddListener(() => OnSessionItemClicked(captured));
+            }
+        }
 
         sessionListItems.Add(itemObj);
     }
 
-    /// <summary>
-    /// Llamado cuando clickean en una sesión de la lista
-    /// </summary>
+    private GameObject CreateDynamicSessionButton()
+    {
+        GameObject obj = new GameObject("SessionBtn");
+        obj.transform.SetParent(sessionListContainer, false);
+
+        // RectTransform
+        RectTransform rt = obj.AddComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(0, 50);
+
+        // Fondo
+        Image img = obj.AddComponent<Image>();
+        img.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+
+        // Botón
+        Button btn = obj.AddComponent<Button>();
+        ColorBlock colors = btn.colors;
+        colors.highlightedColor = new Color(0.35f, 0.35f, 0.35f);
+        colors.pressedColor     = new Color(0.15f, 0.15f, 0.15f);
+        btn.colors = colors;
+
+        // Layout
+        LayoutElement layout = obj.AddComponent<LayoutElement>();
+        layout.preferredHeight = 50;
+        layout.flexibleWidth   = 1;
+
+        // Texto
+        GameObject textObj = new GameObject("Label");
+        textObj.transform.SetParent(obj.transform, false);
+        RectTransform textRt = textObj.AddComponent<RectTransform>();
+        textRt.anchorMin = Vector2.zero;
+        textRt.anchorMax = Vector2.one;
+        textRt.offsetMin = new Vector2(10, 0);
+        textRt.offsetMax = new Vector2(-10, 0);
+
+        TextMeshProUGUI tmp = textObj.AddComponent<TextMeshProUGUI>();
+        tmp.color     = Color.white;
+        tmp.fontSize  = 16;
+        tmp.alignment = TextAlignmentOptions.MidlineLeft;
+
+        return obj;
+    }
+
+    // =====================================================================
+    // CLICK EN SESIÓN → UNIRSE
+    // =====================================================================
+
     private void OnSessionItemClicked(SessionInfo session)
     {
-        Debug.Log($"[LobbyUI] Joining session: {session.Name}");
-        
-        if (LobbyManager.Instance != null)
-        {
-            LobbyManager.Instance.JoinRoom(session.Name);
-        }
+        Debug.Log($"[LobbyUI] Uniéndose a: {session.Name}");
+        UpdateStatus($"Uniéndote a \"{session.Name}\"...");
 
-        UpdateStatus($"Uniéndote a {session.Name}...");
+        LobbyManager.Instance?.JoinRoom(session.Name);
+        ShowLobbyWaitPanel(session.Name);
     }
 
-    /// <summary>
-    /// Recargar lista de sesiones manualmente
-    /// </summary>
-    public void RefreshSessionListManual()
-    {
-        Debug.Log("[LobbyUI] Manual refresh sessions");
-        
-        if (LobbyManager.Instance != null)
-        {
-            // Fusion actualiza la lista periódicamente, pero puedes forzar aquí si needed
-            var sessions = LobbyManager.Instance.GetAvailableSessions();
-            RefreshSessionList(sessions);
-        }
-    }
+    // =====================================================================
+    // BOTÓN: INICIAR PARTIDA (solo host)
+    // =====================================================================
 
-    /// <summary>
-    /// Actualizar cuando jugador entra
-    /// </summary>
-    private void OnPlayerJoined(PlayerRef player)
-    {
-        Debug.Log($"[LobbyUI] Player joined: {player}");
-        UpdatePlayerCount();
-        UpdateStatus($"Jugador {player} se unió");
-    }
-
-    /// <summary>
-    /// Actualizar cuando jugador sale
-    /// </summary>
-    private void OnPlayerLeft(PlayerRef player)
-    {
-        Debug.Log($"[LobbyUI] Player left: {player}");
-        UpdatePlayerCount();
-        UpdateStatus($"Jugador {player} salió");
-    }
-
-    /// <summary>
-    /// Actualizar contador de jugadores
-    /// </summary>
-    private void UpdatePlayerCount()
-    {
-        currentRunner = LobbyManager.Instance?.GetCurrentRunner();
-        if (currentRunner != null && playerCountText != null)
-        {
-            int playerCount = currentRunner.ActivePlayers.Count();
-            playerCountText.text = $"Jugadores en sala: {playerCount}";
-        }
-    }
-
-    /// <summary>
-    /// Conectado al servidor
-    /// </summary>
-    private void OnConnectedToServer()
-    {
-        Debug.Log("[LobbyUI] Connected to server");
-        currentRunner = LobbyManager.Instance?.GetCurrentRunner();
-        UpdatePlayerCount();
-        UpdateStatus("Conectado al servidor");
-
-        // Mostrar botón de iniciar si eres host
-        if (startMatchButton != null && LobbyManager.Instance != null)
-        {
-            startMatchButton.interactable = LobbyManager.Instance.IsHost();
-        }
-    }
-
-    /// <summary>
-    /// Desconectado del servidor
-    /// </summary>
-    private void OnDisconnectedFromServer()
-    {
-        Debug.Log("[LobbyUI] Disconnected from server");
-        currentRunner = null;
-        sessionListItems.Clear();
-        UpdateStatus("Desconectado");
-
-        if (startMatchButton != null)
-        {
-            startMatchButton.interactable = false;
-        }
-    }
-
-    /// <summary>
-    /// Error en la red
-    /// </summary>
-    private void OnNetworkError(string errorMessage)
-    {
-        Debug.LogError($"[LobbyUI] Network error: {errorMessage}");
-        UpdateStatus($"Error: {errorMessage}");
-    }
-
-    /// <summary>
-    /// Iniciar la partida (solo host)
-    /// </summary>
-    public void OnStartMatchButton()
+    private void OnStartMatchClicked()
     {
         if (LobbyManager.Instance == null || !LobbyManager.Instance.IsHost())
         {
-            Debug.LogWarning("[LobbyUI] Only host can start match");
+            UpdateStatus("Solo el host puede iniciar la partida");
             return;
         }
 
-        Debug.Log("[LobbyUI] Starting match");
-        UpdateStatus("¡Partida iniciada!");
-
-        // Aquí podrías desactivar el panel del lobby
-        if (lobbyPanel != null)
-        {
-            lobbyPanel.SetActive(false);
-        }
-
-        // Aquí irían eventos/callbacks para iniciar la partida (loading, countdown, etc.)
+        Debug.Log("[LobbyUI] Host iniciando partida...");
+        UpdateStatus("Iniciando partida...");
+        LobbyManager.Instance.StartMatch();
     }
 
-    /// <summary>
-    /// Actualizar texto de estado
-    /// </summary>
+    // =====================================================================
+    // BOTÓN: CANCELAR SALA
+    // =====================================================================
+
+    private void OnCancelRoomClicked()
+    {
+        LobbyManager.Instance?.Disconnect();
+        ShowMainMenu();
+        UpdateStatus("Sala cancelada");
+
+        // Reconectar al lobby para seguir viendo sesiones
+        LobbyManager.Instance?.ConnectToFusionLobby();
+    }
+
+    // =====================================================================
+    // EVENTOS DE RED
+    // =====================================================================
+
+    private void OnPlayerJoined(PlayerRef player)
+    {
+        Debug.Log($"[LobbyUI] Jugador entró: {player}");
+        UpdatePlayerCount();
+    }
+
+    private void OnPlayerLeft(PlayerRef player)
+    {
+        Debug.Log($"[LobbyUI] Jugador salió: {player}");
+        UpdatePlayerCount();
+    }
+
+    private void UpdatePlayerCount()
+    {
+        var runner = LobbyManager.Instance?.GetCurrentRunner();
+        if (runner != null && playerCountText != null)
+        {
+            int count = runner.ActivePlayers.Count();
+            playerCountText.text = $"Jugadores: {count}";
+        }
+    }
+
+    private void OnConnectedToServer()
+    {
+        Debug.Log("[LobbyUI] Conectado al servidor");
+        UpdateStatus("Conectado ✓");
+        UpdatePlayerCount();
+    }
+
+    private void OnDisconnectedFromServer()
+    {
+        Debug.Log("[LobbyUI] Desconectado del servidor");
+        UpdateStatus("Desconectado");
+        ShowMainMenu();
+    }
+
+    private void OnNetworkError(string error)
+    {
+        Debug.LogError($"[LobbyUI] Error de red: {error}");
+        UpdateStatus($"Error: {error}");
+    }
+
     private void UpdateStatus(string message)
     {
         if (statusText != null)
-        {
             statusText.text = message;
-        }
     }
-}
-
-/// <summary>
-/// Serializable para prefabs de UI items
-/// (En un proyecto real, tendrías un prefab en Assets)
-/// </summary>
-[System.Serializable]
-public struct Prefab
-{
-    public GameObject prefab;
 }
