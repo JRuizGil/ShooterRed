@@ -93,15 +93,15 @@ public class PlayerMovements : NetworkBehaviour
     }
 
     // =========================================================
-    // RENDER — solo remotos, sin CC
+    // RENDER — todos los clientes aplican la posicion del host
+    // El host ya tiene la posicion correcta porque el la calcula
     // =========================================================
     public override void Render()
     {
-        if (Object.HasInputAuthority) return;
+        // El host no necesita aplicar — ya tiene la posicion correcta
+        if (Object.HasStateAuthority) return;
 
-        // ✅ Asignar posición directamente — sin Lerp
-        // El Lerp acumulaba error de posición tick a tick
-        // Fusion ya interpola internamente entre snapshots networked
+        // Tanto el cliente local como los remotos aplican la posicion del host
         transform.position = NetworkedPosition;
         transform.rotation = Quaternion.Euler(0f, NetworkedRotationY, 0f);
     }
