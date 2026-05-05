@@ -40,9 +40,10 @@ public class PlayerWeaponManager : NetworkBehaviour
                 weaponHolderParent = holder.transform;
             }
         }
-        playerNetworkInput = GetComponent<PlayerNetworkInput>();
+        
         
     }
+    
 
     /// <summary>
     /// Añadir un arma al inventario
@@ -206,5 +207,6 @@ public class PlayerWeaponManager : NetworkBehaviour
             SwitchPreviousWeapon();
 
         // Las armas manejan su propio input en sus FixedUpdateNetwork
+        playerNetworkInput = GetComponent<PlayerNetworkInput>();
     }
 }

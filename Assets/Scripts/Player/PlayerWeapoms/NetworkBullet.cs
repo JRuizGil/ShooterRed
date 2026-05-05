@@ -34,15 +34,35 @@ public class NetworkBullet : NetworkBehaviour
     {
         if (!Object.HasStateAuthority) return;
 
+        Vector3 impactPosition = other.bounds.center;
+        Vector3 impactNormal = (impactPosition - transform.position).normalized;
+
+        // Detectar colisión con jugador
         if (other.CompareTag("PlayerCollider"))
         {
             PlayerHealth targetHealth = other.GetComponentInParent<PlayerHealth>();
+            if (targetHealth != null)
+            {
+                targetHealth.TakeDamage("Torso", Object.InputAuthority);
+                ImpactEffects.PlayBloodSplash(impactPosition, impactNormal);
+            }
         }
-        if (other.CompareTag("HeadCollider"))
+        else if (other.CompareTag("HeadCollider"))
         {
             PlayerHealth targetHealth = other.GetComponentInParent<PlayerHealth>();
-            targetHealth.TakeDamage("Head", Object.InputAuthority);
+            if (targetHealth != null)
+            {
+                targetHealth.TakeDamage("Head", Object.InputAuthority);
+                ImpactEffects.PlayBloodSplash(impactPosition, impactNormal);
+                ImpactEffects.PlayImpactFlash(impactPosition);
+            }
         }
+        else
+        {
+            // Impacto en superficie general
+            ImpactEffects.PlayBulletImpact(impactPosition, impactNormal);
+        }
+
         Runner.Despawn(Object);
     }
 }

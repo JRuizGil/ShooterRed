@@ -10,6 +10,12 @@ public class PlayerState : NetworkBehaviour
     public PlayerRef OwnerPlayer { get; set; }
 
     /// <summary>
+    /// Nombre del jugador sincronizado por red
+    /// </summary>
+    [Networked, OnChangedRender(nameof(OnPlayerNameChanged))]
+    public NetworkString<_32> PlayerName { get; set; }
+
+    /// <summary>
     /// Salud actual del jugador (sincronizada por red)
     /// </summary>
     [Networked, OnChangedRender(nameof(OnHealthChanged))]
@@ -53,6 +59,14 @@ public class PlayerState : NetworkBehaviour
     {
         Debug.Log($"[PlayerState] Health changed to: {Health}");
         RefreshHealthVisuals();
+    }
+
+    /// <summary>
+    /// Callback cuando el nombre del jugador cambia
+    /// </summary>
+    private void OnPlayerNameChanged()
+    {
+        Debug.Log($"[PlayerState] Player name changed to: {PlayerName}");
     }
 
     /// <summary>

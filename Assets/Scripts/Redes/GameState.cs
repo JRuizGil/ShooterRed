@@ -40,7 +40,7 @@ public class GameState : NetworkBehaviour
     /// <summary>
     /// Agregar un kill a un jugador
     /// </summary>
-    public void AddKill(PlayerRef killer, PlayerRef victim)
+    public void AddKill(PlayerRef killer, PlayerRef victim, string cause = "Unknown")
     {
         if (!HasStateAuthority)
             return;
@@ -59,19 +59,71 @@ public class GameState : NetworkBehaviour
             playerStats[killer].MaxKillStreak = playerStats[killer].KillStreak;
         }
 
+        int killerStreak = playerStats[killer].KillStreak;
+
         // Resetear streak de la víctima e incrementar deaths
         playerStats[victim].Deaths++;
         playerStats[victim].KillStreak = 0;
 
         TotalKills++;
 
-        Debug.Log($"[GameState] Kill: {killer} killed {victim}. Streak: {playerStats[killer].KillStreak}");
+        // Obtener nombres de los jugadores
+        PlayerState killerState = FindPlayerStateByRef(killer);
+        PlayerState victimState = FindPlayerStateByRef(victim);
+        string killerName = killerState != null ? killerState.PlayerName.ToString() : "Unknown";
+        string victimName = victimState != null ? victimState.PlayerName.ToString() : "Unknown";
+
+        Debug.Log($"[GameState] Kill: {killer} killed {victim}. Streak: {killerStreak}. Cause: {cause}");
+
+        // Agregar al kill feed
+        KillFeed killFeed = FindFirstObjectByType<KillFeed>();
+        if (killFeed != null)
+        {
+            killFeed.AddKillFeedEntry(killerName, victimName, cause);
+        }
+
+        // Desbloquear habilidades por racha
+        PlayerState killerPlayerState = FindPlayerStateByRef(killer);
+        if (killerPlayerState != null)
+        {
+            PlayerHabilities abilities = killerPlayerState.GetComponent<PlayerHabilities>();
+            if (abilities != null)
+            {
+                // Desbloquear habilidades por rachas
+                if (killerStreak == 3)
+                {
+                    abilities.UnlockAbility(3);
+                }
+                else if (killerStreak == 5)
+                {
+                    abilities.UnlockAbility(5);
+                }
+                else if (killerStreak == 10)
+                {
+                    abilities.UnlockAbility(10);
+                }
+            }
+        }
 
         // Verificar victoria
         if (playerStats[killer].Kills >= CurrentScoreLimit)
         {
             EndMatch(killer);
         }
+    }
+
+    /// <summary>
+    /// Encontrar PlayerState por referencia de jugador
+    /// </summary>
+    private PlayerState FindPlayerStateByRef(PlayerRef playerRef)
+    {
+        PlayerState[] allPlayers = FindObjectsByType<PlayerState>(FindObjectsSortMode.None);
+        foreach (PlayerState player in allPlayers)
+        {
+            if (player.OwnerPlayer == playerRef)
+                return player;
+        }
+        return null;
     }
 
     /// <summary>

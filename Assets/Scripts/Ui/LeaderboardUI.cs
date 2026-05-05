@@ -85,9 +85,13 @@ public class LeaderboardUI : MonoBehaviour
     /// </summary>
     private string GetPlayerName(PlayerRef playerRef)
     {
-        // Aquí puedes conectar con un sistema de nombres
-        // Por ahora, mostrar el ID del jugador
-        return $"Player {playerRef.PlayerId}";
+        PlayerState[] allPlayers = FindObjectsByType<PlayerState>(FindObjectsSortMode.None);
+        foreach (PlayerState player in allPlayers)
+        {
+            if (player.OwnerPlayer == playerRef)
+                return player.PlayerName.ToString();
+        }
+        return $"Player{playerRef.PlayerId}";
     }
 
     /// <summary>

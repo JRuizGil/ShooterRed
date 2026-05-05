@@ -28,6 +28,7 @@ public class PlayerHealth : NetworkBehaviour
             RespawnTimer = 0f;
         }
 
+        ownerPlayer = Object.InputAuthority;
         InitializeBodyParts();
         hitPartNames.Clear();
     }
@@ -69,6 +70,41 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// Método sobrecargado para daño genérico (Granada, Torreta, AirStrike)
+    /// </summary>
+    public void TakeDamage(int damageAmount, PlayerRef attackerRef, string causeOfDeath)
+    {
+        // Solo el servidor ejecuta esto
+        if (!Object.HasStateAuthority) return;
+        if (!IsAlive) return;
+
+        HitsRemaining -= damageAmount;
+
+        // Notificar visualmente
+        RPC_OnDamageTaken(causeOfDeath);
+
+        if (HitsRemaining <= 0)
+        {
+            IsAlive = false;
+            RespawnTimer = respawnDelay;
+
+            GameState gameState = FindFirstObjectByType<GameState>();
+            if (gameState != null)
+                gameState.AddKill(attackerRef, ownerPlayer);
+        }
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_OnDamageTaken(string causeOfDeath)
+    {
+        // Efecto visual general de daño
+        if (hitVfxPrefab != null)
+            Instantiate(hitVfxPrefab, transform.position, Quaternion.identity);
+
+        Debug.Log($"[PlayerHealth] Took damage from {causeOfDeath}");
+    }
+
     // Solo visual — se ejecuta en todos los clientes
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_OnPartHit(string partName)
@@ -96,6 +132,13 @@ public class PlayerHealth : NetworkBehaviour
         RespawnTimer = 0f;
         hitPartNames.Clear();
 
+        // Resetear habilidades de racha
+        PlayerHabilities abilities = GetComponent<PlayerHabilities>();
+        if (abilities != null)
+        {
+            abilities.ResetAbilities();
+        }
+
         RPC_OnRespawn();
     }
 
@@ -119,6 +162,26 @@ public class PlayerHealth : NetworkBehaviour
             bodyParts = new GameObject[renderers.Length];
             for (int i = 0; i < renderers.Length; i++)
                 bodyParts[i] = renderers[i].gameObject;
+        }
+    }
+    // Añadir dentro de la clase PlayerHealth
+    public void TakeDamageHits(int hits, PlayerRef attackerRef)
+    {
+        if (!Object.HasStateAuthority) return;
+        if (!IsAlive) return;
+
+        for (int i = 0; i < hits; i++)
+        {
+            if (HitsRemaining <= 0) break;
+
+            foreach (GameObject part in bodyParts)
+            {
+            if (part != null && !hitPartNames.Contains(part.name))
+                {
+                    TakeDamage(part.name, attackerRef);
+                    break;
+                }
+            }
         }
     }
 

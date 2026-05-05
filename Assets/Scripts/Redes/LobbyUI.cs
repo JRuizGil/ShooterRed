@@ -5,7 +5,7 @@ using Fusion;
 using System.Linq;
 using TMPro;
 
-public class LobbyUI : MonoBehaviour
+public class LobbyUIFusion : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private Transform sessionListContainer; // Contenedor para items de lista

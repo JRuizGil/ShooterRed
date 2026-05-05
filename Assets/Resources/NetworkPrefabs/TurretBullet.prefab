@@ -13,9 +13,8 @@ GameObject:
   - component: {fileID: 7645892923656260847}
   - component: {fileID: 2559646913163124583}
   - component: {fileID: 7383490197041649187}
-  - component: {fileID: 8340322410944124540}
   - component: {fileID: 7335821211383209490}
-  - component: {fileID: 7297673691208261484}
+  - component: {fileID: 526413882115688263}
   m_Layer: 0
   m_Name: TurretBullet
   m_TagString: Untagged
@@ -139,18 +138,6 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8340322410944124540
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3464212307858578657}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b18fda61f5029cb4fb52ccaebcb7a03f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &7335821211383209490
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -168,9 +155,9 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 8340322410944124540}
+  - {fileID: 526413882115688263}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &7297673691208261484
+--- !u!114 &526413882115688263
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -179,8 +166,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 3464212307858578657}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1541381998, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Script: {fileID: 11500000, guid: cdce204cfe8fac045980b9ec9f36b8fe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Guid:
-    RawGuidValue: 1d4ce415c4d178240b90e07ef3ce5c44
+  speed: 20
+  lifetime: 10

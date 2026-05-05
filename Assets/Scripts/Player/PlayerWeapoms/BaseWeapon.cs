@@ -23,6 +23,7 @@ public abstract class BaseWeapon : NetworkBehaviour
     [Networked] protected TickTimer FireCooldown { get; set; }
 
     // Local variables
+    
     protected bool isEquipped = false;
     protected bool canFire = true;
 
@@ -79,6 +80,7 @@ public abstract class BaseWeapon : NetworkBehaviour
     /// <summary>
     /// Método que se llama en FixedUpdateNetwork para manejar inputs
     /// </summary>
+    // Añadir en BaseWeapon.cs — reemplaza HandleFireInput
     protected virtual void HandleFireInput(PlayerNetworkInput input)
     {
         if (!isEquipped || !Object.HasInputAuthority) return;
@@ -88,8 +90,14 @@ public abstract class BaseWeapon : NetworkBehaviour
 
         if (firePressed && FireCooldown.ExpiredOrNotRunning(Runner))
         {
-            Fire();
+            RPC_Fire(); // cliente pide al servidor
             FireCooldown = TickTimer.CreateFromSeconds(Runner, fireRate);
         }
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    protected void RPC_Fire()
+    {
+        Fire(); // servidor ejecuta el disparo real
     }
 }

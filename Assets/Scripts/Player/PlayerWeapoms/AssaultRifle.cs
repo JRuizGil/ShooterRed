@@ -15,11 +15,20 @@ public class AssaultRifle : BaseWeapon
 
     private void Start()
     {
-        weaponName = "Assault Rifle";
-        ammoCapacity = 30;
-        fireRate = 0.05f; // Muy rápido para automático
-        bulletSpeed = 25f;
-        CurrentAmmo = ammoCapacity;
+       
+    }
+    public override void Spawned()
+    {
+        if (Object.HasStateAuthority)
+        {
+            CurrentAmmo = ammoCapacity;
+            weaponName = "Assault Rifle";
+            ammoCapacity = 30;
+            fireRate = 0.05f; // Muy rápido para automático
+            bulletSpeed = 25f;
+            CurrentAmmo = ammoCapacity;
+        }
+        
     }
 
     public override void OnEquip()
@@ -69,6 +78,9 @@ public class AssaultRifle : BaseWeapon
         }
 
         if (!Object.HasStateAuthority) return;
+
+        // Reproducir sonido localmente
+        AudioManager.PlayGunShot(firePoint.position, "rifle");
 
         RPC_RequestFire();
         CurrentAmmo--;

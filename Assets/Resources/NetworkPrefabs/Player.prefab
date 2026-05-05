@@ -735,8 +735,8 @@ GameObject:
   - component: {fileID: 6427343461458036506}
   - component: {fileID: 5111222414096278218}
   - component: {fileID: 5030535095916791987}
-  - component: {fileID: 9057257660090389972}
   - component: {fileID: 6211946145621009743}
+  - component: {fileID: 9057257660090389972}
   m_Layer: 6
   m_Name: Player
   m_TagString: Enemy
@@ -832,7 +832,8 @@ MonoBehaviour:
   - {fileID: 7134219331342292121}
   damagedMaterial: {fileID: 2100000, guid: c29747f9ed3c05d40b9d1c15b8f94ed3, type: 2}
   respawnDelay: 3
-  hitVfxPrefab: {fileID: 0}
+  hitVfxPrefab: {fileID: 5292834138467073696, guid: a77043d87b617e14baf58a921c6f6b4e,
+    type: 3}
   _HitsRemaining: 4
   _IsAlive:
     _value: 0
@@ -849,6 +850,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64a5b15ebf9caf34b8ac055f25a75079, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  grenadeRadius: 10
+  grenadeDamage: 30
+  airStrikeDamage: 50
+  turretPrefab: {fileID: 3135861299776484853, guid: 3f403ab81c681c1448673edfee57c85e,
+    type: 3}
+  turretDuration: 15
+  grenadeKey: 122
+  airStrikeKey: 120
+  turretKey: 99
+  _HasGrenade: 1
+  _HasAirStrike: 1
+  _HasTurret: 1
+--- !u!114 &6211946145621009743
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4274938987262611362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 726b337523d3a824e89cd22996d0db40, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxWeaponSlots: 3
+  weaponHolderParent: {fileID: 844696057758463955}
+  _CurrentWeaponSlot: 1
+  _InventoryCount: 0
 --- !u!114 &9057257660090389972
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -868,24 +897,9 @@ MonoBehaviour:
   NetworkedBehaviours:
   - {fileID: 6427343461458036506}
   - {fileID: 5111222414096278218}
+  - {fileID: 5030535095916791987}
   - {fileID: 6211946145621009743}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &6211946145621009743
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4274938987262611362}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 726b337523d3a824e89cd22996d0db40, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  maxWeaponSlots: 3
-  weaponHolderParent: {fileID: 844696057758463955}
-  _CurrentWeaponSlot: 1
-  _InventoryCount: 0
 --- !u!1 &4686017822789625351
 GameObject:
   m_ObjectHideFlags: 0
