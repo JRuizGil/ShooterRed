@@ -11,8 +11,6 @@ public class PlayerState : NetworkBehaviour
     [Networked, OnChangedRender(nameof(OnHealthChanged))]
     public int Health { get; set; }
 
-    [SerializeField] private GameObject hitVfx;
-
     public override void Spawned()
     {
         OwnerPlayer = Object.InputAuthority;
@@ -26,12 +24,8 @@ public class PlayerState : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
-        // ✅ Limpiar del registro al despawnear
         PlayerRegistry.Unregister(OwnerPlayer);
         Debug.Log($"[PlayerState] Despawned: {OwnerPlayer}");
-
-        if (hitVfx != null)
-            hitVfx.SetActive(false);
     }
 
     private void OnHealthChanged()   => RefreshHealthVisuals();
@@ -39,13 +33,13 @@ public class PlayerState : NetworkBehaviour
 
     private void RefreshHealthVisuals()
     {
-        // Conectar con GameHUD si es el jugador local
         if (Object.HasInputAuthority && GameHUD.Instance != null)
             GameHUD.Instance.RefreshFromPlayerState(this);
     }
 
+    // Feedback visual local — llamado desde PlayerHealth.RPC_HitFeedback
     public void PlayLocalDamageFeedback()
     {
-        if (hitVfx != null) hitVfx.SetActive(true);
+        GameHUD.Instance?.ShowHitFeedback();
     }
 }

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7449002788423424035}
   - component: {fileID: 6337020871804265541}
   - component: {fileID: -5083130155629967634}
+  - component: {fileID: -8988870710870385984}
   m_Layer: 0
   m_Name: HitVFX
   m_TagString: Untagged
@@ -4846,8 +4847,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ff124affd5c9884881ab58b0d7dcbd3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  bulletImpactPrefab: {fileID: 0}
-  explosionPrefab: {fileID: 0}
-  bloodSplashPrefab: {fileID: 0}
   particleLifetime: 2
-  explosionScale: 2
+--- !u!114 &-8988870710870385984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5292834138467073696}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SortKey: 873935322
+  ObjectInterest: 1
+  Flags: 262145
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: -5083130155629967634}
+  ForceRemoteRenderTimeframe: 0

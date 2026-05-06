@@ -243,11 +243,14 @@ GameObject:
   m_Component:
   - component: {fileID: 6126273312244314741}
   - component: {fileID: 6602284733855219381}
+  - component: {fileID: 2924550462460312760}
   - component: {fileID: 6427343461458036506}
-  - component: {fileID: 5111222414096278218}
   - component: {fileID: 5030535095916791987}
   - component: {fileID: 6211946145621009743}
   - component: {fileID: 9057257660090389972}
+  - component: {fileID: 1725019062776686405}
+  - component: {fileID: 1863692781624081526}
+  - component: {fileID: 7897243305497074539}
   m_Layer: 6
   m_Name: Player
   m_TagString: Enemy
@@ -292,11 +295,32 @@ CharacterController:
   serializedVersion: 3
   m_Height: 0.32
   m_Radius: 0.35
-  m_SlopeLimit: 0
-  m_StepOffset: 0
+  m_SlopeLimit: 30
+  m_StepOffset: 0.1
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0.33, z: 0}
+--- !u!114 &2924550462460312760
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4274938987262611362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5f380c549969d84c9c28aed8cdc788d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHits: 4
+  respawnDelay: 3
+  hitVfxPrefab: {fileID: 5292834138467073696, guid: a77043d87b617e14baf58a921c6f6b4e,
+    type: 3}
+  damagedMaterial: {fileID: 2100000, guid: 6487fdefd669d4dbc91709a177cd4b93, type: 2}
+  _HitsRemaining: 4
+  _IsAlive:
+    _value: 1
+  _RespawnTimer: 0
 --- !u!114 &6427343461458036506
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -322,27 +346,6 @@ MonoBehaviour:
   cameraHolder: {fileID: 3223494179079452856}
   _NetworkedPosition: {x: 0, y: 0, z: 0}
   _NetworkedRotationY: 0
---- !u!114 &5111222414096278218
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4274938987262611362}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5f380c549969d84c9c28aed8cdc788d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  maxHits: 4
-  respawnDelay: 3
-  hitVfxPrefab: {fileID: 5292834138467073696, guid: a77043d87b617e14baf58a921c6f6b4e,
-    type: 3}
-  damagedMaterial: {fileID: 2100000, guid: c29747f9ed3c05d40b9d1c15b8f94ed3, type: 2}
-  _HitsRemaining: 4
-  _IsAlive:
-    _value: 1
-  _RespawnTimer: 5
 --- !u!114 &5030535095916791987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -404,11 +407,63 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
+  - {fileID: 2924550462460312760}
   - {fileID: 6427343461458036506}
-  - {fileID: 5111222414096278218}
   - {fileID: 5030535095916791987}
   - {fileID: 6211946145621009743}
+  - {fileID: 1725019062776686405}
+  - {fileID: 1863692781624081526}
+  - {fileID: 7897243305497074539}
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &1725019062776686405
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4274938987262611362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2bd697f61709ec64e998b4ffb78364da, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _PlayerName:
+    _length: 0
+    _data:
+      Data: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  _Health: 50
+--- !u!114 &1863692781624081526
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4274938987262611362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3994e6426ebc3e245a2d8d7bde8eee8d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  respawnDelay: 3
+  enableSpawnProtection: 1
+  spawnPointManager: {fileID: 0}
+--- !u!114 &7897243305497074539
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4274938987262611362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 748f83aeb26071a4ea9424e78592d7aa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  protectionDuration: 2
+  protectionMaterial: {fileID: 2100000, guid: 85a5f987437cc4794b97b153a23d7ccb, type: 2}
+  blinkInterval: 0.2
+  _IsProtected:
+    _value: 0
 --- !u!1 &7050791995052227256
 GameObject:
   m_ObjectHideFlags: 0
