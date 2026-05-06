@@ -1,7 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-// Rifle automático que dispara múltiples balas mientras se presiona el botón
+// Rifle automático que dispara múltiples balas mientras se mantiene presionado
 public class AssaultRifle : BaseWeapon
 {
     [Header("Automatic Fire Settings")]
@@ -10,28 +10,23 @@ public class AssaultRifle : BaseWeapon
 
     private float lastFireTime = 0f;
 
-    private void Start()
-    {
-       
-    }
     public override void Spawned()
     {
         if (Object.HasStateAuthority)
         {
-            CurrentAmmo = ammoCapacity;
             weaponName = "Assault Rifle";
-            ammoCapacity = 30;
-            fireRate = 0.05f; // Muy rápido para automático
+            ammoCapacity = 30;      // Balas antes de recargar
+            fireRate = 0.05f;       // 50ms entre disparos
+            reloadTime = 2f;        // Recarga más lenta
             bulletSpeed = 25f;
             CurrentAmmo = ammoCapacity;
         }
-        
     }
 
     public override void OnEquip()
     {
         base.OnEquip();
-        Debug.Log($"[{weaponName}] ¡Rifle automático equipado!");
+        Debug.Log("[AssaultRifle] ¡Rifle automático equipado!");
     }
 
     public override void FixedUpdateNetwork()
@@ -46,69 +41,54 @@ public class AssaultRifle : BaseWeapon
             }
             else
             {
-                HandleFireInput(input);
+                HandleSemiAutoFire(input);
             }
         }
     }
 
+    // Disparo automático: mientras se mantiene presionado el botón
     private void HandleAutoFire(PlayerNetworkInput input)
     {
-        // Fuego automático: dispara mientras se mantenga presionado
         bool fireHeld = input.Buttons.IsSet(PlayerButtons.Fire);
-        
-        if (fireHeld)
+
+        if (fireHeld && Time.time >= lastFireTime + autoFireCooldown && CanShoot())
         {
-            if (Time.time >= lastFireTime + autoFireCooldown && CurrentAmmo > 0)
-            {
-                Fire();
-                lastFireTime = Time.time;
-            }
+            RPC_Fire();
+            lastFireTime = Time.time;
+        }
+    }
+
+    // Disparo semi-automático: un tiro por presión
+    private void HandleSemiAutoFire(PlayerNetworkInput input)
+    {
+        bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
+        PreviousButtons = input.Buttons;
+        if (firePressed && CanShoot())
+        {
+            RPC_Fire();
         }
     }
 
     public override void Fire()
     {
-        if (CurrentAmmo <= 0)
-        {
-            Debug.Log($"[{weaponName}] ¡Sin munición!");
-            return;
-        }
-
+        // Solo el servidor ejecuta el disparo
         if (!Object.HasStateAuthority) return;
 
-        // Reproducir sonido localmente
-        AudioManager.PlayGunShot(firePoint.position, "rifle");
-
-        RPC_RequestFire();
-        CurrentAmmo--;
-    }
-
-    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    private void RPC_RequestFire()
-    {
-        if (bulletPrefab == null)
+        // Si está recargando o no hay munición, no disparar
+        if (isReloading || CurrentAmmo <= 0)
         {
-            Debug.LogError($"[{weaponName}] BulletPrefab no asignado!");
+            if (CurrentAmmo <= 0)
+                Reload();
             return;
         }
 
-        var bullet = Runner.Spawn(
-            bulletPrefab,
-            firePoint.position,
-            firePoint.rotation,
-            Object.InputAuthority
-        );
-
-        NetworkBullet bulletScript = bullet.GetComponent<NetworkBullet>();
-        if (bulletScript != null)
+        if (!bulletPrefab.IsValid)
         {
-            bulletScript.Init(firePoint.forward * bulletSpeed);
+            Debug.LogError("[AssaultRifle] bulletPrefab no registrado!");
+            return;
         }
-    }
 
-    public override void Reload()
-    {
-        base.Reload();
-        lastFireTime = Time.time; // Reset cooldown al recargar
+        // Disparar
+        Shoot(Runner, firePoint.position, firePoint.forward, Object.InputAuthority, bulletPrefab);
     }
 }

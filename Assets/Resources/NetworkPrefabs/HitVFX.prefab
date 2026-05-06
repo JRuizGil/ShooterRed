@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 4392320770775255306}
   - component: {fileID: 7449002788423424035}
   - component: {fileID: 6337020871804265541}
+  - component: {fileID: -5083130155629967634}
   m_Layer: 0
   m_Name: HitVFX
   m_TagString: Untagged
@@ -4833,3 +4834,20 @@ ParticleSystemRenderer:
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
   m_MaskInteraction: 0
+--- !u!114 &-5083130155629967634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5292834138467073696}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ff124affd5c9884881ab58b0d7dcbd3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bulletImpactPrefab: {fileID: 0}
+  explosionPrefab: {fileID: 0}
+  bloodSplashPrefab: {fileID: 0}
+  particleLifetime: 2
+  explosionScale: 2

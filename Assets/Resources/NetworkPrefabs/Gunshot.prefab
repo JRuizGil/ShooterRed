@@ -42,10 +42,11 @@ GameObject:
   - component: {fileID: 6428005185683238477}
   - component: {fileID: 1624720056786254382}
   - component: {fileID: 2644472009332020108}
-  - component: {fileID: 3905833279446178711}
   - component: {fileID: -2964810695771534261}
   - component: {fileID: 6275594073971162804}
   - component: {fileID: -2446212441147526448}
+  - component: {fileID: 7720826297299757509}
+  - component: {fileID: 3233665772779286745}
   m_Layer: 0
   m_Name: Gunshot
   m_TagString: Untagged
@@ -122,18 +123,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &3905833279446178711
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3635539808449524135}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 82f6c9219c09d184f9a8c78ac23a1681, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &-2964810695771534261
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -148,8 +137,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   pickupRadius: 2
   pickupCooldown: 1
-  pickupRotationOffset: {x: 0, y: 0, z: 0}
-  enablePickupGlow: 1
+  enablePickupGlow: 0
   glowColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   glowIntensity: 1.5
 --- !u!135 &6275594073971162804
@@ -200,3 +188,46 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &7720826297299757509
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3635539808449524135}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e5dcd07b4a8c4143933b071a464fa03, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  weaponName: Weapon
+  ammoCapacity: 30
+  fireRate: 0.1
+  reloadTime: 1.5
+  bulletSpeed: 20
+  firePoint: {fileID: 96496277900058333}
+  bulletPrefab:
+    RawGuidValue: 1d4ce415c4d178240b90e07ef3ce5c44
+  _CurrentAmmo: 0
+  pelletsPerShot: 8
+  spreadAngle: 15
+  bulletSpeedVariation: 0.9
+--- !u!114 &3233665772779286745
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3635539808449524135}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SortKey: 1925549833
+  ObjectInterest: 1
+  Flags: 262145
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 7720826297299757509}
+  ForceRemoteRenderTimeframe: 0

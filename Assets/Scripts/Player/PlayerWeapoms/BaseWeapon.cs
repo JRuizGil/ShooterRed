@@ -1,36 +1,56 @@
 using Fusion;
 using UnityEngine;
 
+// Clase base de armas con soporte para disparo networked, munición infinita y recarga
 public abstract class BaseWeapon : NetworkBehaviour
 {
     [Header("Weapon Info")]
     [SerializeField] protected string weaponName = "Weapon";
-    [SerializeField] protected int ammoCapacity  = 30;
-    [SerializeField] protected float fireRate    = 0.1f;
+    [SerializeField] protected int ammoCapacity  = 30;  // Balas antes de recargar
+    [SerializeField] protected float fireRate    = 0.1f; // Tiempo entre disparos
+    [SerializeField] protected float reloadTime  = 1.5f; // Tiempo de recarga
     [SerializeField] protected float bulletSpeed = 20f;
 
     [Header("References")]
     [SerializeField] protected Transform firePoint;
     [SerializeField] protected NetworkPrefabRef bulletPrefab;
 
+    // Munición actual (resetea después de ammoCapacity balas)
     [Networked] public int CurrentAmmo { get; set; }
-    [Networked] protected NetworkButtons PreviousButtons { get; set; }
+    
+    // Temporizador para fuego y recarga
     [Networked] protected TickTimer FireCooldown { get; set; }
-
-    // isEquipped networked — todos los clientes ven el estado correcto
+    [Networked] protected TickTimer ReloadCooldown { get; set; }
+    [Networked] protected NetworkButtons PreviousButtons { get; set; }
+    
     [Networked] private NetworkBool _isEquipped { get; set; }
+    [Networked] private NetworkBool _isReloading { get; set; }
 
-    // Propiedad protegida para que las clases hijas puedan leerla igual que antes
     protected bool isEquipped => _isEquipped;
+    protected bool isReloading => _isReloading;
 
     public virtual string GetWeaponName() => weaponName;
     public virtual int GetCurrentAmmo()   => CurrentAmmo;
     public virtual int GetAmmoCapacity()  => ammoCapacity;
     public virtual bool IsEquipped()      => _isEquipped;
+    public virtual bool IsReloading()     => _isReloading;
 
-    // CanShoot publico para que PlayerWeaponManager lo consulte
+    // Puede disparar si: está equipada, no está recargando y cooldown de fuego expiró
     public virtual bool CanShoot() =>
-        _isEquipped && CurrentAmmo > 0 && FireCooldown.ExpiredOrNotRunning(Runner);
+        _isEquipped && !_isReloading && FireCooldown.ExpiredOrNotRunning(Runner);
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasStateAuthority) return;
+
+        // Verificar si la recarga terminó
+        if (_isReloading && ReloadCooldown.Expired(Runner))
+        {
+            _isReloading = false;
+            CurrentAmmo = ammoCapacity;
+            Debug.Log($"[{weaponName}] ¡Recargada! Munición: {CurrentAmmo}");
+        }
+    }
 
     public virtual void OnEquip()
     {
@@ -43,37 +63,45 @@ public abstract class BaseWeapon : NetworkBehaviour
     public virtual void OnUnequip()
     {
         _isEquipped = false;
-        // No desactivar el GameObject aquí — el WeaponHolder lo gestiona
-        // Si desactivamos, el objeto desaparece también como pickup
         Debug.Log($"[{weaponName}] Desequipada!");
     }
 
     public virtual void Reload()
     {
-        if (!_isEquipped) return;
-        CurrentAmmo = ammoCapacity;
+        if (!Object.HasStateAuthority || _isReloading) return;
+
+        _isReloading = true;
+        ReloadCooldown = TickTimer.CreateFromSeconds(Runner, reloadTime);
+        Debug.Log($"[{weaponName}] Recargando...");
     }
 
-    public virtual string GetAmmoDisplay() => $"{CurrentAmmo}/{ammoCapacity}";
+    public virtual string GetAmmoDisplay()
+    {
+        if (_isReloading)
+            return "RECARGANDO...";
+        return $"{CurrentAmmo}/{ammoCapacity}";
+    }
 
     public override void Render()
     {
-        // Solo gestionar visibilidad cuando el arma está siendo portada por un jugador
-        // Si no está equipada por nadie (pickup en suelo) no tocar el GameObject
+        // Asegurar visibilidad cuando está equipada
         if (!_isEquipped) return;
-
-        // Si está equipada, asegurarse de que sea visible
         if (!gameObject.activeSelf)
             gameObject.SetActive(true);
     }
 
-    // =========================================================
-    // RUTA A: PlayerWeaponManager llama Shoot() desde el host
-    // =========================================================
+    // Dispara una bala spawneada en red
     public virtual void Shoot(NetworkRunner runner, Vector3 origin, Vector3 direction,
                               PlayerRef shooter, NetworkPrefabRef externalBulletPrefab)
     {
         if (!CanShoot()) return;
+
+        // Si la munición se agota, recargar automáticamente
+        if (CurrentAmmo <= 1)
+        {
+            Reload();
+            return;
+        }
 
         FireCooldown = TickTimer.CreateFromSeconds(runner, fireRate);
         CurrentAmmo--;
@@ -94,24 +122,20 @@ public abstract class BaseWeapon : NetworkBehaviour
             onBeforeSpawned: (r, obj) => obj.GetComponent<NetworkBullet>()?.Init(velocity)
         );
 
-        Debug.Log($"[{weaponName}] Disparada! Ammo: {CurrentAmmo}");
+        Debug.Log($"[{weaponName}] ¡Disparada! Munición: {CurrentAmmo}/{ammoCapacity}");
     }
 
-    // =========================================================
-    // RUTA B: cliente llama HandleFireInput -> RPC al host
-    // (mantener por compatibilidad con armas que lo usen directamente)
-    // =========================================================
+    // Flujo alternativo: RPC para armas que lo necesiten
     protected virtual void HandleFireInput(PlayerNetworkInput input)
     {
         if (!_isEquipped || !Object.HasInputAuthority) return;
 
         bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
-        PreviousButtons  = input.Buttons;
+        PreviousButtons = input.Buttons;
 
-        if (firePressed && FireCooldown.ExpiredOrNotRunning(Runner))
+        if (firePressed && CanShoot())
         {
             RPC_Fire();
-            FireCooldown = TickTimer.CreateFromSeconds(Runner, fireRate);
         }
     }
 

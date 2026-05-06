@@ -137,7 +137,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   pickupRadius: 2
   pickupCooldown: 1
-  enablePickupGlow: 1
+  enablePickupGlow: 0
   glowColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   glowIntensity: 1.5
 --- !u!135 &-919518490059841264
@@ -203,6 +203,7 @@ MonoBehaviour:
   weaponName: Assault
   ammoCapacity: 30
   fireRate: 0.1
+  reloadTime: 1.5
   bulletSpeed: 20
   firePoint: {fileID: 8230291526355826093}
   bulletPrefab:

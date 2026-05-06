@@ -1,55 +1,94 @@
-using System.Collections.Generic;
+using Fusion;
 using UnityEngine;
 
-public class AutomaticPistol : MonoBehaviour
+// Pistola automática que hereda de BaseWeapon para funcionalidad networked
+public class AutomaticPistol : BaseWeapon
 {
-    public GameObject bulletPrefab;
-    public Transform firePoint;
-    public float bulletSpeed = 20f;
-    public int poolSize = 10;
-    private List<GameObject> bulletPool = new List<GameObject>();
+    [Header("Automatic Fire Settings")]
+    [SerializeField] private float autoFireCooldown = 0.08f;
+    [SerializeField] private bool useAutoFire = true;
 
-    void Start()
+    private float lastFireTime = 0f;
+
+    public override void Spawned()
     {
-        // Crear pool
-        for (int i = 0; i < poolSize; i++)
+        if (Object.HasStateAuthority)
         {
-            GameObject bullet = Instantiate(bulletPrefab);
-            bullet.SetActive(false);
-            bulletPool.Add(bullet);
+            weaponName = "Automatic Pistol";
+            ammoCapacity = 20;      // Balas antes de recargar
+            fireRate = 0.08f;       // 80ms entre disparos
+            reloadTime = 1.5f;      // Recarga media
+            bulletSpeed = 18f;      // Velocidad media
+            CurrentAmmo = ammoCapacity;
         }
     }
-    
-    void Update()
+
+    public override void OnEquip()
     {
-        // Semiautom�tico (clic izquierdo)
-        if (Input.GetMouseButtonDown(0))
+        base.OnEquip();
+        Debug.Log("[AutomaticPistol] ¡Pistola automática equipada!");
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasInputAuthority || !isEquipped) return;
+
+        if (GetInput(out PlayerNetworkInput input))
         {
-            Shoot();
+            if (useAutoFire)
+            {
+                HandleAutoFire(input);
+            }
+            else
+            {
+                HandleSemiAutoFire(input);
+            }
         }
     }
-    void Shoot()
+
+    // Disparo automático: mientras se mantiene presionado el botón
+    private void HandleAutoFire(PlayerNetworkInput input)
     {
-        GameObject bullet = GetBulletFromPool();
+        bool fireHeld = input.Buttons.IsSet(PlayerButtons.Fire);
 
-        if (bullet != null)
+        if (fireHeld && Time.time >= lastFireTime + autoFireCooldown && CanShoot())
         {
-            bullet.transform.position = firePoint.position;
-            bullet.transform.rotation = firePoint.rotation;
-
-            NetworkBullet bulletScript = bullet.GetComponent<NetworkBullet>();
-            bulletScript.Init(firePoint.forward * bulletSpeed);
-
-            bullet.SetActive(true);
+            RPC_Fire();
+            lastFireTime = Time.time;
         }
     }
-    GameObject GetBulletFromPool()
+
+    // Disparo semi-automático: un tiro por presión
+    private void HandleSemiAutoFire(PlayerNetworkInput input)
     {
-        foreach (var bullet in bulletPool)
+        bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
+        PreviousButtons = input.Buttons;
+        if (firePressed && CanShoot())
         {
-            if (!bullet.activeInHierarchy)
-                return bullet;
+            RPC_Fire();
         }
-        return null;
+    }
+
+    public override void Fire()
+    {
+        // Solo el servidor ejecuta el disparo
+        if (!Object.HasStateAuthority) return;
+
+        // Si está recargando o no hay munición, no disparar
+        if (isReloading || CurrentAmmo <= 0)
+        {
+            if (CurrentAmmo <= 0)
+                Reload();
+            return;
+        }
+
+        if (!bulletPrefab.IsValid)
+        {
+            Debug.LogError("[AutomaticPistol] bulletPrefab no registrado!");
+            return;
+        }
+
+        // Disparar
+        Shoot(Runner, firePoint.position, firePoint.forward, Object.InputAuthority, bulletPrefab);
     }
 }
