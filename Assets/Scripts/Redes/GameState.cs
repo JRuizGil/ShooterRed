@@ -2,10 +2,7 @@ using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Estado global del juego sincronizado en red
-/// Mantiene track de scores, estadísticas y estado de partida
-/// </summary>
+// Mantiene registro centralizado de kills, deaths y estadísticas de todos los jugadores
 public class GameState : NetworkBehaviour
 {
     [Networked] public int CurrentScoreLimit { get; set; }
@@ -37,9 +34,7 @@ public class GameState : NetworkBehaviour
         MatchState = 0;
     }
 
-    /// <summary>
-    /// Agregar un kill a un jugador
-    /// </summary>
+    // Registra un kill, incrementa racha del atacante, resetea la de la víctima
     public void AddKill(PlayerRef killer, PlayerRef victim, string cause = "Unknown")
     {
         if (!HasStateAuthority)
@@ -112,9 +107,7 @@ public class GameState : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Encontrar PlayerState por referencia de jugador
-    /// </summary>
+    // Busca el PlayerState de un jugador comparando su PlayerRef
     private PlayerState FindPlayerStateByRef(PlayerRef playerRef)
     {
         PlayerState[] allPlayers = FindObjectsByType<PlayerState>(FindObjectsSortMode.None);
@@ -126,9 +119,7 @@ public class GameState : NetworkBehaviour
         return null;
     }
 
-    /// <summary>
-    /// Obtener estadísticas de un jugador
-    /// </summary>
+    // Retorna las estadísticas de un jugador específico
     public PlayerStats GetPlayerStats(PlayerRef player)
     {
         if (playerStats.ContainsKey(player))
@@ -139,9 +130,7 @@ public class GameState : NetworkBehaviour
         return newStats;
     }
 
-    /// <summary>
-    /// Obtener todas las estadísticas ordenadas por kills
-    /// </summary>
+    // Retorna todos los jugadores ordenados por kills descendente
     public List<(PlayerRef player, PlayerStats stats)> GetLeaderboard()
     {
         List<(PlayerRef, PlayerStats)> leaderboard = new List<(PlayerRef, PlayerStats)>();

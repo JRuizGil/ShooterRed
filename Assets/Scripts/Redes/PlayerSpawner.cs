@@ -42,9 +42,7 @@ public class PlayerSpawner : MonoBehaviour
         // }
     }
 
-    /// <summary>
-    /// Create default spawn points if none exist in the scene
-    /// </summary>
+    // Crea puntos de spawn por defecto si no existen en escena
     private void CreateDefaultSpawnPoints()
     {
         // Create SpawnPointsManager GameObject
@@ -97,10 +95,7 @@ public class PlayerSpawner : MonoBehaviour
         // }
     }
 
-    /// <summary>
-    /// Llamado cuando un jugador entra a la sesión
-    /// Spawnea el prefab de jugador en el siguiente punto de spawn
-    /// </summary>
+    // Spawnea un jugador en el siguiente punto disponible (llamado por NetworkRunnerHandler)
     private void HandlePlayerJoined(PlayerRef playerRef)
     {
         NetworkRunner runner = LobbyManager.Instance.GetCurrentRunner();

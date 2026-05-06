@@ -3,10 +3,7 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 
-/// <summary>
-/// Interfaz del leaderboard
-/// Muestra clasificación en tiempo real de kills/deaths
-/// </summary>
+// Muestra la tabla de posiciones con kills, deaths y rachas
 public class LeaderboardUI : MonoBehaviour
 {
     [Header("Leaderboard Display")]
@@ -50,9 +47,7 @@ public class LeaderboardUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Actualizar la visualización del leaderboard
-    /// </summary>
+    // Construye el texto del leaderboard desde los datos de GameState
     private void UpdateLeaderboard()
     {
         if (gameState == null)
@@ -80,9 +75,7 @@ public class LeaderboardUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Obtener nombre del jugador
-    /// </summary>
+    // Busca el nombre del jugador en la escena por su PlayerRef
     private string GetPlayerName(PlayerRef playerRef)
     {
         PlayerState[] allPlayers = FindObjectsByType<PlayerState>(FindObjectsSortMode.None);
@@ -94,18 +87,14 @@ public class LeaderboardUI : MonoBehaviour
         return $"Player{playerRef.PlayerId}";
     }
 
-    /// <summary>
-    /// Mostrar/ocultar leaderboard
-    /// </summary>
+    // Alterna la visibilidad del leaderboard
     public void ToggleLeaderboard()
     {
         if (leaderboardText != null)
             leaderboardText.gameObject.SetActive(!leaderboardText.gameObject.activeSelf);
     }
 
-    /// <summary>
-    /// Singleton getter
-    /// </summary>
+    // Instancia singleton para acceso global
     public static LeaderboardUI Instance { get; private set; }
 
     private void OnEnable()

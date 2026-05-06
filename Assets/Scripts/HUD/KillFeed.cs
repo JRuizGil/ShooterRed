@@ -3,10 +3,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using TMPro;
 
-/// <summary>
-/// Sistema de Kill Feed - muestra eventos de eliminaciones en tiempo real
-/// Se sincroniza a través de la red
-/// </summary>
+// Muestra en pantalla eventos de eliminaciones en tiempo real
 public class KillFeed : NetworkBehaviour
 {
     [Header("UI Settings")]
@@ -71,9 +68,7 @@ public class KillFeed : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Agregar una entrada al kill feed (desde GameState o PlayerHealth)
-    /// </summary>
+    // Agrega una entrada al kill feed sincronizada en todos los clientes
     public void AddKillFeedEntry(string killerName, string victimName, string cause)
     {
         if (!HasStateAuthority)

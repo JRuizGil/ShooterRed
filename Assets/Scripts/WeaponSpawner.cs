@@ -69,9 +69,7 @@ public class WeaponSpawner : NetworkBehaviour
         Debug.Log($"[WeaponSpawner] Spawn completado: {spawned} armas en {attempts} intentos");
     }
 
-    /// <summary>
-    /// Obtener posición aleatoria dentro del radio, ajustada al suelo con raycast.
-    /// </summary>
+    // Genera una posición aleatoria dentro del radio y ajusta a la altura del suelo
     private Vector3 GetRandomPosition()
     {
         // Punto aleatorio en círculo

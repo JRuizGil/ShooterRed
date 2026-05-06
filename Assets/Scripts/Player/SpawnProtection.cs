@@ -1,10 +1,7 @@
 using UnityEngine;
 using System.Collections;
 
-/// <summary>
-/// Sistema de protección de spawn
-/// Hace invulnerable al jugador por un tiempo después de respawnear
-/// </summary>
+// Hace el jugador invulnerable y lo hace parpadear después de respawnear
 public class SpawnProtection : MonoBehaviour
 {
     [Header("Spawn Protection")]
@@ -31,9 +28,7 @@ public class SpawnProtection : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Activar protección de spawn
-    /// </summary>
+    // Inicia la corrutina de protección con parpadeo visual
     public void ActivateSpawnProtection()
     {
         if (protectionCoroutine != null)
@@ -42,9 +37,7 @@ public class SpawnProtection : MonoBehaviour
         protectionCoroutine = StartCoroutine(SpawnProtectionRoutine());
     }
 
-    /// <summary>
-    /// Corrutina de protección de spawn
-    /// </summary>
+    // Gestiona el tiempo de invulnerabilidad y la animación de parpadeo
     private IEnumerator SpawnProtectionRoutine()
     {
         isProtected = true;
@@ -88,9 +81,7 @@ public class SpawnProtection : MonoBehaviour
         Debug.Log("[SpawnProtection] Protection ended");
     }
 
-    /// <summary>
-    /// Mostrar/ocultar renderizadores
-    /// </summary>
+    // Activa o desactiva la visibilidad de los renderizadores para el parpadeo
     private void SetRenderersActive(bool active)
     {
         foreach (Renderer renderer in renderers)

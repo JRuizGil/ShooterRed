@@ -1,10 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// Rifle Automático - Ejemplo de arma que hereda de BaseWeapon.
-/// Dispara múltiples balas mientras se mantiene presionado el botón.
-/// </summary>
+// Rifle automático que dispara múltiples balas mientras se presiona el botón
 public class AssaultRifle : BaseWeapon
 {
     [Header("Automatic Fire Settings")]

@@ -1,10 +1,7 @@
 using UnityEngine;
 using Fusion;
 
-/// <summary>
-/// Sistema de audio centralizado
-/// Gestiona sonidos de disparos, impactos y eventos del juego
-/// </summary>
+// Sistema centralizado que maneja reproducción de efectos de sonido
 public class AudioManager : MonoBehaviour
 {
     [Header("Audio Clips")]
@@ -62,9 +59,7 @@ public class AudioManager : MonoBehaviour
         UpdateVolumes();
     }
 
-    /// <summary>
-    /// Reproducir sonido de disparo
-    /// </summary>
+    // Reproduce el sonido de disparo aleatorio en la posición especificada
     public static void PlayGunShot(Vector3 position, string weaponType = "rifle")
     {
         if (instance == null || instance.gunShotClips.Length == 0)
@@ -74,9 +69,7 @@ public class AudioManager : MonoBehaviour
         instance.PlaySoundAt(clip, position);
     }
 
-    /// <summary>
-    /// Reproducir sonido de impacto
-    /// </summary>
+    // Reproduce un sonido de impacto aleatorio en la posición especificada
     public static void PlayImpactSound(Vector3 position, string surfaceType = "metal")
     {
         if (instance == null || instance.impactClips.Length == 0)
@@ -86,9 +79,7 @@ public class AudioManager : MonoBehaviour
         instance.PlaySoundAt(clip, position, 0.5f);
     }
 
-    /// <summary>
-    /// Reproducir sonido de explosión de granada
-    /// </summary>
+    // Reproduce el sonido de explosión de granada en la posición especificada
     public static void PlayGrenadeExplosion(Vector3 position)
     {
         if (instance == null || instance.grenadeExplosionClip == null)

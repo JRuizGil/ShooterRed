@@ -1,9 +1,6 @@
 using UnityEngine;
 
-/// <summary>
-/// Sistema de efectos visuales de impacto
-/// Maneja explosiones, salpicaduras de pintura y efectos de daño
-/// </summary>
+// Renderiza efectos visuales de impactos, explosiones y destellos en el mundo
 public class ImpactEffects : MonoBehaviour
 {
     [Header("Prefabs")]
@@ -25,9 +22,7 @@ public class ImpactEffects : MonoBehaviour
             Destroy(gameObject);
     }
 
-    /// <summary>
-    /// Crear efecto de impacto de bala
-    /// </summary>
+    // Dibuja una esfera amarilla y una línea en la dirección del impacto
     public static void PlayBulletImpact(Vector3 position, Vector3 normal)
     {
         if (instance == null)
@@ -54,9 +49,7 @@ public class ImpactEffects : MonoBehaviour
         Debug.DrawLine(position, position + normal * 2f, Color.yellow, instance.particleLifetime);
     }
 
-    /// <summary>
-    /// Crear efecto de explosión
-    /// </summary>
+    // Dibuja una esfera naranja que crece y un círculo de radio de explosión
     public static void PlayExplosion(Vector3 position, float radius = 5f)
     {
         if (instance == null)
@@ -84,9 +77,7 @@ public class ImpactEffects : MonoBehaviour
         DebugDrawCircle(position, radius, Color.red, instance.particleLifetime);
     }
 
-    /// <summary>
-    /// Crear salpicadura de pintura/sangre
-    /// </summary>
+    // Dibuja un quad rojo en la dirección del impacto
     public static void PlayBloodSplash(Vector3 position, Vector3 normal)
     {
         if (instance == null)
@@ -108,9 +99,7 @@ public class ImpactEffects : MonoBehaviour
         Destroy(splash, instance.particleLifetime);
     }
 
-    /// <summary>
-    /// Crear destello de impacto
-    /// </summary>
+    // Crea una luz amarilla puntual que desaparece en 0.2 segundos
     public static void PlayImpactFlash(Vector3 position)
     {
         if (instance == null)

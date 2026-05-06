@@ -192,8 +192,8 @@ MonoBehaviour:
     y: 0
     width: 253
     height: 497
-  m_MinSize: {x: 200, y: 200}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 201, y: 226}
+  m_MaxSize: {x: 4001, y: 4026}
   m_ActualView: {fileID: 16}
   m_Panes:
   - {fileID: 16}
@@ -300,8 +300,8 @@ MonoBehaviour:
     y: 0
     width: 670
     height: 436
-  m_MinSize: {x: 200, y: 200}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 202, y: 226}
+  m_MaxSize: {x: 4002, y: 4026}
   m_ActualView: {fileID: 15}
   m_Panes:
   - {fileID: 15}
@@ -391,8 +391,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Game\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 591
-    y: 576
+    x: 592
+    y: 24
     width: 668
     height: 410
   m_SerializedDataModeController:
@@ -494,7 +494,7 @@ MonoBehaviour:
   m_Pos:
     serializedVersion: 2
     x: 0
-    y: 79
+    y: 24
     width: 252
     height: 471
   m_SerializedDataModeController:
@@ -560,8 +560,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Scene\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 253
-    y: 79
+    x: 254
+    y: 24
     width: 1006
     height: 471
   m_SerializedDataModeController:
@@ -1042,11 +1042,11 @@ MonoBehaviour:
   m_Rotation:
     m_Target: {x: 0.19019501, y: -0.09671087, z: 0.018823449, w: 0.9767748}
     speed: 2
-    m_Value: {x: 0.19019783, y: -0.0967123, z: 0.018823726, w: 0.97678924}
+    m_Value: {x: -0.19019501, y: 0.09671087, z: -0.018823447, w: -0.97677475}
   m_Size:
     m_Target: 0.6879351
     speed: 2
-    m_Value: 0.7203509
+    m_Value: 0.6879351
   m_Ortho:
     m_Target: 0
     speed: 2
@@ -1233,7 +1233,7 @@ MonoBehaviour:
   m_Pos:
     serializedVersion: 2
     x: 0
-    y: 576
+    y: 24
     width: 590
     height: 410
   m_SerializedDataModeController:
@@ -1277,7 +1277,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 14}
     m_SelectedIDs: b4a70000
     m_LastClickedID: 42932
-    m_ExpandedIDs: 00000000b4a70000b6a70000b8a70000baa70000bca7000000ca9a3bffffff7f
+    m_ExpandedIDs: 000000003ea5000040a5000042a5000044a50000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1306,7 +1306,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs: 
     m_LastClickedID: 0
-    m_ExpandedIDs: 00000000b4a70000b6a70000b8a70000baa70000bca7000000ca9a3bffffff7f
+    m_ExpandedIDs: 000000003ea5000040a5000042a5000044a50000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1338,18 +1338,18 @@ MonoBehaviour:
     m_ExpandedInstanceIDs: c62300005a7f010000000000700c0100
     m_RenameOverlay:
       m_UserAcceptedRename: 0
-      m_Name: AssaultRifle
-      m_OriginalName: AssaultRifle
+      m_Name: 
+      m_OriginalName: 
       m_EditFieldRect:
         serializedVersion: 2
         x: 0
         y: 0
         width: 0
         height: 0
-      m_UserData: 22466
+      m_UserData: 0
       m_IsWaitingForDelay: 0
       m_IsRenaming: 0
-      m_OriginalEventType: 0
+      m_OriginalEventType: 11
       m_IsRenamingFilename: 1
       m_TrimLeadingAndTrailingWhitespace: 0
       m_ClientGUIView: {fileID: 11}
@@ -1423,8 +1423,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Inspector\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 1261
-    y: 79
+    x: 1262
+    y: 24
     width: 658
     height: 907
   m_SerializedDataModeController:

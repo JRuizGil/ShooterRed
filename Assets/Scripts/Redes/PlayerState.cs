@@ -3,31 +3,22 @@ using UnityEngine;
 
 public class PlayerState : NetworkBehaviour
 {
-    /// <summary>
-    /// Propietario de red del jugador (identifica quién controla este objeto)
-    /// </summary>
+    // Identificador del jugador que controla este objeto en red
     [Networked]
     public PlayerRef OwnerPlayer { get; set; }
 
-    /// <summary>
-    /// Nombre del jugador sincronizado por red
-    /// </summary>
+    // Nombre del jugador sincronizado en la red
     [Networked, OnChangedRender(nameof(OnPlayerNameChanged))]
     public NetworkString<_32> PlayerName { get; set; }
 
-    /// <summary>
-    /// Salud actual del jugador (sincronizada por red)
-    /// </summary>
+    // Puntos de vida del jugador sincronizados en red
     [Networked, OnChangedRender(nameof(OnHealthChanged))]
     public int Health { get; set; }
 
     //[SerializeField] private HealthBar healthBar;
     [SerializeField] private GameObject hitVfx;
 
-    /// <summary>
-    /// Llamado cuando el objeto entra a la simulación de red
-    /// Aquí es seguro acceder a propiedades [Networked]
-    /// </summary>
+    // Se ejecuta cuando el jugador entra en la simulación de red
     public override void Spawned()
     {
         Debug.Log($"[PlayerState] Player spawned: {OwnerPlayer}, Health: {Health}");
@@ -39,9 +30,7 @@ public class PlayerState : NetworkBehaviour
         ResolveComponentReferences();
     }
 
-    /// <summary>
-    /// Llamado cuando el objeto sale de la simulación de red
-    /// </summary>
+    // Se ejecuta cuando el jugador sale de la simulación de red
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         Debug.Log($"[PlayerState] Player despawned: {OwnerPlayer}");
@@ -52,35 +41,27 @@ public class PlayerState : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Callback cuando la salud cambia (por OnChangedRender)
-    /// </summary>
+    // Se dispara cuando la salud cambia en red
     private void OnHealthChanged()
     {
         Debug.Log($"[PlayerState] Health changed to: {Health}");
         RefreshHealthVisuals();
     }
 
-    /// <summary>
-    /// Callback cuando el nombre del jugador cambia
-    /// </summary>
+    // Se dispara cuando el nombre del jugador cambia en red
     private void OnPlayerNameChanged()
     {
         Debug.Log($"[PlayerState] Player name changed to: {PlayerName}");
     }
 
-    /// <summary>
-    /// Actualizar la visualización de salud
-    /// </summary>
+    // Sincroniza el valor de salud con los elementos visuales
     private void RefreshHealthVisuals()
     {
         // healthBar.SetValueWithoutNotify(Health);
         Debug.Log($"[PlayerState] Refreshing health visuals: {Health}");
     }
 
-    /// <summary>
-    /// Reproducir feedback de daño local
-    /// </summary>
+    // Activa el efecto visual de daño en el cliente
     private void PlayLocalDamageFeedback()
     {
         if (hitVfx != null)
@@ -89,10 +70,7 @@ public class PlayerState : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Resolver referencias de componentes internos
-    /// Se llama en Spawned() para asegurar que todo esté listo
-    /// </summary>
+    // Busca y conecta referencias de componentes dependientes del jugador
     private void ResolveComponentReferences()
     {
         // Aquí puedes conectar con PlayerMovements, PlayerHabilities, etc.

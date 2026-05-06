@@ -136,11 +136,7 @@ public class PlayerWeaponManager : NetworkBehaviour
         return true;
     }
 
-    /// <summary>
-    /// Posiciona el arma visualmente en el holder.
-    /// Si tiene NetworkObject no usamos SetParent — solo ajustamos posición/rotación.
-    /// Si no tiene NetworkObject sí podemos parentar.
-    /// </summary>
+    // Posiciona visualmente el arma en el holder sin usar SetParent en NetworkObjects
     private void PositionWeaponOnHolder(BaseWeapon weapon)
     {
         if (weaponHolderParent == null) return;

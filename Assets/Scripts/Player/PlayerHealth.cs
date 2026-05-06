@@ -45,7 +45,7 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    // Llamado desde NetworkBullet en el servidor
+    // Aplica daño a una parte específica del cuerpo y rastrea si fue golpeada
     public void TakeDamage(string partName, PlayerRef attackerRef)
     {
         // Solo el servidor ejecuta esto
@@ -70,9 +70,7 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Método sobrecargado para daño genérico (Granada, Torreta, AirStrike)
-    /// </summary>
+    // Aplica daño genérico desde explosiones o efectos de área
     public void TakeDamage(int damageAmount, PlayerRef attackerRef, string causeOfDeath)
     {
         // Solo el servidor ejecuta esto

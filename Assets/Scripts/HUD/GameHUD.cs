@@ -3,10 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// Sistema de HUD en juego
-/// Muestra vida del jugador, munición, kill streak y stats
-/// </summary>
+// Muestra vida, racha de kills y estadísticas en pantalla durante el juego
 public class GameHUD : MonoBehaviour
 {
     [Header("Health Display")]
@@ -90,9 +87,7 @@ public class GameHUD : MonoBehaviour
         UpdateCrosshair();
     }
 
-    /// <summary>
-    /// Actualizar display de vida
-    /// </summary>
+    // Actualiza el texto y barra de vida según la salud actual del jugador
     private void UpdateHealthDisplay()
     {
         if (playerHealth == null || healthText == null)

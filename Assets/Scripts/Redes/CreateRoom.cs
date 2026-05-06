@@ -7,9 +7,7 @@ public class CreateRoom : MonoBehaviour
     [SerializeField]
     private TMP_InputField roomNameInput;
 
-    /// <summary>
-    /// Botón para crear sala - llamar desde UI Button onClick event
-    /// </summary>
+    // Crea una sala con el nombre del InputField (llamado desde onClick del botón)
     public void OnCreateRoomButtonClicked()
     {
         if (roomNameInput == null)
@@ -38,9 +36,7 @@ public class CreateRoom : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Limpiar el input después de crear sala
-    /// </summary>
+    // Borra el texto del InputField
     public void ClearRoomNameInput()
     {
         if (roomNameInput != null)

@@ -2,10 +2,7 @@ using Fusion;
 using UnityEngine;
 using System.Collections.Generic;
 
-/// <summary>
-/// Gestor de partida
-/// Controla el ciclo de vida completo de una partida (inicio, gameplay, fin)
-/// </summary>
+// Controla el ciclo de vida de la partida (preparación, juego, fin)
 public class MatchManager : NetworkBehaviour
 {
     [Header("Match Settings")]
@@ -69,9 +66,7 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Actualizar fase de preparación
-    /// </summary>
+    // Cuenta atrás antes de iniciar la partida
     private void UpdatePreparation()
     {
         preparationTimer -= Runner.DeltaTime;
@@ -82,9 +77,7 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Actualizar fase de juego
-    /// </summary>
+    // Verifica condiciones de victoria por kills o tiempo
     private void UpdatePlaying()
     {
         MatchTimeRemaining -= Runner.DeltaTime;
@@ -106,9 +99,7 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Actualizar fase de fin de partida
-    /// </summary>
+    // Espera antes de volver al lobby después de terminar
     private void UpdateFinished()
     {
         // Esperar antes de volver al lobby
@@ -116,9 +107,7 @@ public class MatchManager : NetworkBehaviour
         Debug.Log("[MatchManager] Match finished. Waiting for players to return to lobby.");
     }
 
-    /// <summary>
-    /// Iniciar la partida
-    /// </summary>
+    // Cambia el estado a juego y desactiva el congelamiento de jugadores
     private void StartMatch()
     {
         CurrentMatchState = MatchState.Playing;
@@ -131,9 +120,7 @@ public class MatchManager : NetworkBehaviour
         RPC_UnfreezeAllPlayers();
     }
 
-    /// <summary>
-    /// Finalizar la partida
-    /// </summary>
+    // Detiene el juego y muestra pantalla de fin de juego
     private void EndMatch()
     {
         CurrentMatchState = MatchState.Finished;

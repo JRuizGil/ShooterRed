@@ -1,12 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// Sistema de habilidades por rachas de bajas
-/// 3 kills → Granada de pintura (Z)
-/// 5 kills → Ataque aéreo (X)
-/// 10 kills → Torreta de pintura (C)
-/// </summary>
+// Sistema de habilidades desbloqueables por racha de kills (3, 5 y 10)
 public class PlayerHabilities : NetworkBehaviour
 {
     [Header("Ability Settings")]
@@ -62,9 +57,7 @@ public class PlayerHabilities : NetworkBehaviour
         Debug.Log($"[PlayerHabilities] Spawned for player {ownerPlayer}");
     }
 
-    /// <summary>
-    /// Llamado por GameState cuando el kill streak alcanza hitos
-    /// </summary>
+    // Desbloquea habilidades específicas según los kills alcanzados
     public void UnlockAbility(int killStreak)
     {
         if (!HasStateAuthority)
@@ -87,9 +80,7 @@ public class PlayerHabilities : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Resetear habilidades al morir
-    /// </summary>
+    // Resetea todas las habilidades cuando el jugador muere
     public void ResetAbilities()
     {
         if (!HasStateAuthority)

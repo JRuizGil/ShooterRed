@@ -1,10 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// Granada de pintura que explota al impactar
-/// Causa daño en área dentro de un radio
-/// </summary>
+// Granada de pintura que explota al chocar e inflige daño en área
 public class GrenadePaintball : MonoBehaviour
 {
     private int damage;

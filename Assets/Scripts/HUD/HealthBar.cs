@@ -1,9 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Barra de vida sincronizada con el sistema de daño del jugador
-/// </summary>
+// Controla la barra de vida y su color basado en daño del jugador
 public class HealthBar : MonoBehaviour
 {
     [SerializeField] private Slider healthSlider;
@@ -47,9 +45,7 @@ public class HealthBar : MonoBehaviour
         UpdateHealthDisplay();
     }
 
-    /// <summary>
-    /// Actualizar la visualización de la barra de vida
-    /// </summary>
+    // Actualiza el slider y color según la salud actual
     private void UpdateHealthDisplay()
     {
         int hitsRemaining = playerHealth.GetHitsRemaining();
@@ -78,18 +74,14 @@ public class HealthBar : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Establecer el valor sin disparar notificaciones
-    /// </summary>
+    // Cambia el valor del slider sin activar callbacks
     public void SetValueWithoutNotify(float value)
     {
         if (healthSlider != null)
             healthSlider.SetValueWithoutNotify(value);
     }
 
-    /// <summary>
-    /// Reiniciar la barra de vida
-    /// </summary>
+    // Restablece la barra de vida al valor máximo
     public void Reset()
     {
         if (healthSlider != null)

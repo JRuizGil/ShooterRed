@@ -1,11 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-/// <summary>
-/// Arma recogible en escena.
-/// Puede estar colocada en el editor (no necesita ser spawneada por Fusion).
-/// El pickup se sincroniza via el NetworkObject del jugador que la recoge.
-/// </summary>
+// Arma colocada en escena que puede ser recogida por el jugador
 public class PickableWeapon : MonoBehaviour
 {
     [Header("Pickup Settings")]

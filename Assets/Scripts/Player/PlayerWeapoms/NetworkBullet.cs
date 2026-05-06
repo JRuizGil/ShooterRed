@@ -22,10 +22,7 @@ public class NetworkBullet : NetworkBehaviour
             rb.linearVelocity = Velocity;
     }
 
-    /// <summary>
-    /// Llamado por el host justo antes del spawn (onBeforeSpawned)
-    /// para inicializar la velocidad antes de que Spawned() se ejecute
-    /// </summary>
+    // Inicializa la velocidad de la bala antes del spawn (el host la configura)
     public void Init(Vector3 velocity)
     {
         Velocity = velocity;
