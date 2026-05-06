@@ -1,121 +1,104 @@
+using Fusion;
 using UnityEngine;
 using System.Collections;
 
-// Hace el jugador invulnerable y lo hace parpadear después de respawnear
-public class SpawnProtection : MonoBehaviour
+public class SpawnProtection : NetworkBehaviour
 {
     [Header("Spawn Protection")]
     [SerializeField] private float protectionDuration = 2f;
     [SerializeField] private Material protectionMaterial;
     [SerializeField] private float blinkInterval = 0.2f;
 
-    private PlayerHealth playerHealth;
-    private Renderer[] renderers;
-    private Material[] originalMaterials;
-    private bool isProtected = false;
-    private Coroutine protectionCoroutine;
+    // ✅ Networked para que todos los clientes vean el parpadeo
+    [Networked, OnChangedRender(nameof(OnProtectionChanged))]
+    public NetworkBool IsProtected { get; set; }
 
-    private void Start()
+    private PlayerHealth playerHealth;
+    private Renderer[]   renderers;
+    private Material[]   originalMaterials;
+    private Coroutine    blinkCoroutine;
+
+    public override void Spawned()
     {
         playerHealth = GetComponent<PlayerHealth>();
-        renderers = GetComponentsInChildren<Renderer>();
+        renderers    = GetComponentsInChildren<Renderer>();
 
-        // Guardar materiales originales
         originalMaterials = new Material[renderers.Length];
         for (int i = 0; i < renderers.Length; i++)
-        {
             originalMaterials[i] = renderers[i].material;
-        }
     }
 
-    // Inicia la corrutina de protección con parpadeo visual
+    // Llamado por RespawnManager tras el respawn
     public void ActivateSpawnProtection()
     {
-        if (protectionCoroutine != null)
-            StopCoroutine(protectionCoroutine);
+        if (!Object.HasStateAuthority) return;
+        IsProtected = true;
 
-        protectionCoroutine = StartCoroutine(SpawnProtectionRoutine());
+        // Desactivar protección después del tiempo
+        StartCoroutine(DeactivateAfterDelay());
     }
 
-    // Gestiona el tiempo de invulnerabilidad y la animación de parpadeo
-    private IEnumerator SpawnProtectionRoutine()
+    private IEnumerator DeactivateAfterDelay()
     {
-        isProtected = true;
-        float elapsedTime = 0f;
-
-        // Cambiar a material de protección (puede ser semitransparente o brillante)
-        if (protectionMaterial != null)
-        {
-            foreach (Renderer renderer in renderers)
-            {
-                renderer.material = protectionMaterial;
-            }
-        }
-
-        // Parpadear mientras hay protección
-        while (elapsedTime < protectionDuration)
-        {
-            // Mostrar/ocultar cada blinkInterval
-            if (Mathf.FloorToInt(elapsedTime / blinkInterval) % 2 == 0)
-            {
-                SetRenderersActive(true);
-            }
-            else
-            {
-                SetRenderersActive(false);
-            }
-
-            elapsedTime += Time.deltaTime;
-            yield return null;
-        }
-
-        // Restaurar materiales originales
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            renderers[i].material = originalMaterials[i];
-        }
-
-        SetRenderersActive(true);
-        isProtected = false;
-
-        Debug.Log("[SpawnProtection] Protection ended");
+        yield return new WaitForSeconds(protectionDuration);
+        if (Object.HasStateAuthority)
+            IsProtected = false;
     }
 
-    // Activa o desactiva la visibilidad de los renderizadores para el parpadeo
-    private void SetRenderersActive(bool active)
+    // ✅ OnChangedRender se ejecuta en TODOS los clientes cuando IsProtected cambia
+    private void OnProtectionChanged()
     {
-        foreach (Renderer renderer in renderers)
-        {
-            renderer.enabled = active;
-        }
+        if (IsProtected)
+            StartBlink();
+        else
+            StopBlink();
     }
 
-    /// <summary>
-    /// Verificar si está protegido
-    /// </summary>
-    public bool IsProtected()
+    private void StartBlink()
     {
-        return isProtected;
+        if (blinkCoroutine != null) StopCoroutine(blinkCoroutine);
+        blinkCoroutine = StartCoroutine(BlinkRoutine());
     }
 
-    /// <summary>
-    /// Cancelar protección
-    /// </summary>
-    public void CancelProtection()
+    private void StopBlink()
     {
-        if (protectionCoroutine != null)
+        if (blinkCoroutine != null)
         {
-            StopCoroutine(protectionCoroutine);
-            protectionCoroutine = null;
+            StopCoroutine(blinkCoroutine);
+            blinkCoroutine = null;
         }
-
         // Restaurar materiales
         for (int i = 0; i < renderers.Length; i++)
         {
-            renderers[i].material = originalMaterials[i];
+            if (renderers[i] != null)
+            {
+                renderers[i].enabled  = true;
+                renderers[i].material = originalMaterials[i];
+            }
+        }
+    }
+
+    private IEnumerator BlinkRoutine()
+    {
+        // Aplicar material de protección
+        if (protectionMaterial != null)
+            foreach (var r in renderers)
+                if (r != null) r.material = protectionMaterial;
+
+        float elapsed = 0f;
+        while (IsProtected)
+        {
+            bool visible = Mathf.FloorToInt(elapsed / blinkInterval) % 2 == 0;
+            foreach (var r in renderers)
+                if (r != null) r.enabled = visible;
+
+            elapsed += Time.deltaTime;
+            yield return null;
         }
 
-        SetRenderersActive(true);
-        isProtected = false;
+        StopBlink();
     }
+
+    // Para PlayerHealth: bloquear daño si está protegido
+    public bool CanTakeDamage() => !IsProtected;
 }

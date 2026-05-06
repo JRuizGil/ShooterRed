@@ -1,189 +1,133 @@
 using Fusion;
 using UnityEngine;
-using System.Collections.Generic;
 
 public class PlayerHealth : NetworkBehaviour
 {
-    [Header("Body Parts Setup")]
-    [SerializeField] private GameObject[] bodyParts = new GameObject[9];
-    [SerializeField] private Material damagedMaterial;
+    [Header("Settings")]
+    [SerializeField] private int maxHits      = 4;
     [SerializeField] private float respawnDelay = 3f;
 
     [Header("Feedback")]
     [SerializeField] private GameObject hitVfxPrefab;
+    [SerializeField] private Material   damagedMaterial;
 
-    [Networked] public int HitsRemaining { get; set; }
-    [Networked] public NetworkBool IsAlive { get; set; }
-    [Networked] public float RespawnTimer { get; set; }
+    [Networked] public int          HitsRemaining    { get; set; }
+    [Networked] public NetworkBool  IsAlive          { get; set; }
+    [Networked] public float        RespawnTimer     { get; set; }
 
     private PlayerRef ownerPlayer;
-    private HashSet<string> hitPartNames = new HashSet<string>();
 
+    // =========================================================
     public override void Spawned()
     {
+        ownerPlayer = Object.InputAuthority;
+
         if (Object.HasStateAuthority)
         {
-            HitsRemaining = 4;
-            IsAlive = true;
-            RespawnTimer = 0f;
+            HitsRemaining = maxHits;
+            IsAlive       = true;
+            RespawnTimer  = 0f;
         }
-
-        ownerPlayer = Object.InputAuthority;
-        InitializeBodyParts();
-        hitPartNames.Clear();
     }
 
     public override void FixedUpdateNetwork()
     {
-        if (!Object.HasStateAuthority) return;
+        if (!Object.HasStateAuthority || IsAlive) return;
 
-        if (!IsAlive && RespawnTimer > 0f)
-        {
-            RespawnTimer -= Runner.DeltaTime;
-            if (RespawnTimer <= 0f)
-                RespawnPlayer();
-        }
+        RespawnTimer -= Runner.DeltaTime;
+        if (RespawnTimer <= 0f)
+            Respawn();
     }
 
-    // Aplica daño a una parte específica del cuerpo y rastrea si fue golpeada
-    public void TakeDamage(string partName, PlayerRef attackerRef)
+    // =========================================================
+    // DAÑO
+    // =========================================================
+    public void TakeDamage(string partName, PlayerRef attacker)
     {
-        // Solo el servidor ejecuta esto
-        if (!Object.HasStateAuthority) return;
-        if (!IsAlive) return;
-        if (hitPartNames.Contains(partName)) return;
+        if (!Object.HasStateAuthority || !IsAlive) return;
 
-        hitPartNames.Add(partName);
+        SpawnProtection sp = GetComponent<SpawnProtection>();
+        if (sp != null && !sp.CanTakeDamage()) return;
+
         HitsRemaining--;
-
-        // Notificar visualmente a todos los clientes
-        RPC_OnPartHit(partName);
+        RPC_HitFeedback(transform.position);
 
         if (HitsRemaining <= 0)
-        {
-            IsAlive = false;
-            RespawnTimer = respawnDelay;
-
-            GameState gameState = FindFirstObjectByType<GameState>();
-            if (gameState != null)
-                gameState.AddKill(attackerRef, ownerPlayer);
-        }
+            Die(attacker, partName);
     }
 
-    // Aplica daño genérico desde explosiones o efectos de área
-    public void TakeDamage(int damageAmount, PlayerRef attackerRef, string causeOfDeath)
+    public void TakeDamageHits(int hits, PlayerRef attacker)
     {
-        // Solo el servidor ejecuta esto
-        if (!Object.HasStateAuthority) return;
-        if (!IsAlive) return;
+        if (!Object.HasStateAuthority || !IsAlive) return;
+        for (int i = 0; i < hits && HitsRemaining > 0; i++)
+            TakeDamage("hit", attacker);
+    }
 
-        HitsRemaining -= damageAmount;
-
-        // Notificar visualmente
-        RPC_OnDamageTaken(causeOfDeath);
-
+    public void TakeDamage(int amount, PlayerRef attacker, string cause)
+    {
+        if (!Object.HasStateAuthority || !IsAlive) return;
+        HitsRemaining = Mathf.Max(0, HitsRemaining - amount);
+        RPC_HitFeedback(transform.position);
         if (HitsRemaining <= 0)
-        {
-            IsAlive = false;
-            RespawnTimer = respawnDelay;
-
-            GameState gameState = FindFirstObjectByType<GameState>();
-            if (gameState != null)
-                gameState.AddKill(attackerRef, ownerPlayer);
-        }
+            Die(attacker, cause);
     }
 
-    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_OnDamageTaken(string causeOfDeath)
+    // =========================================================
+    // MUERTE Y RESPAWN
+    // =========================================================
+    private void Die(PlayerRef killer, string cause)
     {
-        // Efecto visual general de daño
-        if (hitVfxPrefab != null)
-            Instantiate(hitVfxPrefab, transform.position, Quaternion.identity);
+        IsAlive      = false;
+        RespawnTimer = respawnDelay;
 
-        Debug.Log($"[PlayerHealth] Took damage from {causeOfDeath}");
+        GameState.Instance?.AddKill(killer, ownerPlayer, cause);
+        GetComponent<PlayerHabilities>()?.ResetAbilities();
+
+        RPC_OnDie(respawnDelay);
     }
 
-    // Solo visual — se ejecuta en todos los clientes
-    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_OnPartHit(string partName)
+    private void Respawn()
     {
-        foreach (GameObject part in bodyParts)
-        {
-            if (part != null && part.name == partName)
-            {
-                Renderer rend = part.GetComponent<Renderer>();
-                if (rend != null && damagedMaterial != null)
-                    rend.material = damagedMaterial;
-
-                if (hitVfxPrefab != null)
-                    Instantiate(hitVfxPrefab, part.transform.position, Quaternion.identity);
-
-                break;
-            }
-        }
-    }
-
-    private void RespawnPlayer()
-    {
-        IsAlive = true;
-        HitsRemaining = 4;
-        RespawnTimer = 0f;
-        hitPartNames.Clear();
-
-        // Resetear habilidades de racha
-        PlayerHabilities abilities = GetComponent<PlayerHabilities>();
-        if (abilities != null)
-        {
-            abilities.ResetAbilities();
-        }
-
+        HitsRemaining = maxHits;
+        IsAlive       = true;
+        RespawnTimer  = 0f;
         RPC_OnRespawn();
+    }
+
+    // =========================================================
+    // RPCs — feedback visual en todos los clientes
+    // =========================================================
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_HitFeedback(Vector3 pos)
+    {
+        if (hitVfxPrefab != null)
+            Instantiate(hitVfxPrefab, pos, Quaternion.identity);
+
+        // Feedback en crosshair del atacante — via HUD local
+        if (Object.HasInputAuthority)
+            GetComponent<PlayerState>()?.PlayLocalDamageFeedback();
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_OnDie(float delay)
+    {
+        // Solo el jugador local ve su pantalla de muerte
+        if (Object.HasInputAuthority)
+            GameHUD.Instance?.ShowDeathScreen(delay);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_OnRespawn()
     {
-        foreach (GameObject part in bodyParts)
-        {
-            if (part == null) continue;
-            Renderer rend = part.GetComponent<Renderer>();
-            if (rend != null)
-                rend.material.color = Color.white;
-        }
+        if (Object.HasInputAuthority)
+            GameHUD.Instance?.HideDeathScreen();
     }
 
-    private void InitializeBodyParts()
-    {
-        if (bodyParts == null || bodyParts.Length == 0)
-        {
-            Renderer[] renderers = GetComponentsInChildren<Renderer>();
-            bodyParts = new GameObject[renderers.Length];
-            for (int i = 0; i < renderers.Length; i++)
-                bodyParts[i] = renderers[i].gameObject;
-        }
-    }
-    // Añadir dentro de la clase PlayerHealth
-    public void TakeDamageHits(int hits, PlayerRef attackerRef)
-    {
-        if (!Object.HasStateAuthority) return;
-        if (!IsAlive) return;
-
-        for (int i = 0; i < hits; i++)
-        {
-            if (HitsRemaining <= 0) break;
-
-            foreach (GameObject part in bodyParts)
-            {
-            if (part != null && !hitPartNames.Contains(part.name))
-                {
-                    TakeDamage(part.name, attackerRef);
-                    break;
-                }
-            }
-        }
-    }
-
-    public bool GetIsAlive() => IsAlive;
-    public int GetHitsRemaining() => HitsRemaining;
-    public void PublicRespawn() => RespawnPlayer();
+    // =========================================================
+    // API PÚBLICA
+    // =========================================================
+    public bool  GetIsAlive()      => IsAlive;
+    public int   GetHitsRemaining() => HitsRemaining;
+    public void  PublicRespawn()   => Respawn();
 }

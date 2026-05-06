@@ -1,25 +1,24 @@
 using Fusion;
 using UnityEngine;
 
-// Escopeta que dispara múltiples balas en patrón de dispersión
 public class Shotgun : BaseWeapon
 {
     [Header("Shotgun Settings")]
-    [SerializeField] private int pelletsPerShot = 8;      // Balas por disparo
-    [SerializeField] private float spreadAngle = 15f;     // Ángulo de dispersión en grados
-    [SerializeField] private float bulletSpeedVariation = 0.9f; // Variación de velocidad (0.9-1.1)
-
-    private float lastFireTime = 0f;
-
+    [SerializeField] private int pelletsPerShot = 8;
+    [SerializeField] private float spreadAngle = 15f;
+    [SerializeField] private float bulletSpeedVariation = 0.9f;
     public override void Spawned()
     {
+        // ✅ Llamar base.Spawned() para garantizar visibilidad en clientes
+        base.Spawned();
+
         if (Object.HasStateAuthority)
         {
-            weaponName = "Shotgun";
-            ammoCapacity = 8;       // Pocas balas antes de recargar
-            fireRate = 0.8f;        // Lenta entre disparos
-            reloadTime = 2.5f;      // Recarga muy lenta
-            bulletSpeed = 22f;      // Velocidad media-alta
+            weaponName   = "Shotgun";
+            ammoCapacity = 8;
+            fireRate     = 0.8f;
+            reloadTime   = 2.5f;
+            bulletSpeed  = 22f;
             CurrentAmmo = ammoCapacity;
         }
     }
@@ -27,74 +26,29 @@ public class Shotgun : BaseWeapon
     public override void OnEquip()
     {
         base.OnEquip();
-        Debug.Log("[Shotgun] ¡Escopeta equipada!");
-    }
-
-    public override void FixedUpdateNetwork()
-    {
-        if (!Object.HasInputAuthority || !isEquipped) return;
-
-        if (GetInput(out PlayerNetworkInput input))
-        {
-            // Disparo semi-automático: un tiro por presión
-            bool firePressed = input.Buttons.WasPressed(PreviousButtons, PlayerButtons.Fire);
-            PreviousButtons = input.Buttons;
-
-            if (firePressed && CanShoot())
-            {
-                RPC_Fire();
-            }
-        }
+        Debug.Log("[Shotgun] Equipada!");
     }
 
     public override void Fire()
     {
-        // Solo el servidor ejecuta el disparo
         if (!Object.HasStateAuthority) return;
+        if (isReloading || CurrentAmmo <= 0) { Reload(); return; }
+        if (!firePoint) { Debug.LogError("[Shotgun] firePoint null!"); return; }
 
-        // Si está recargando o no hay munición, no disparar
-        if (isReloading || CurrentAmmo <= 0)
-        {
-            if (CurrentAmmo <= 0)
-                Reload();
-            return;
-        }
-
-        if (!bulletPrefab.IsValid)
-        {
-            Debug.LogError("[Shotgun] bulletPrefab no registrado!");
-            return;
-        }
-
-        // Establece el cooldown de fuego
+        if (!bulletPrefab.IsValid) { Debug.LogError("[Shotgun] bulletPrefab no asignado!"); return; }
         FireCooldown = TickTimer.CreateFromSeconds(Runner, fireRate);
         CurrentAmmo--;
-
-        // Disparar múltiples balas en patrón de dispersión
         for (int i = 0; i < pelletsPerShot; i++)
         {
-            // Calcular ángulos de dispersión aleatorios
-            float randomSpreadX = Random.Range(-spreadAngle, spreadAngle);
-            float randomSpreadY = Random.Range(-spreadAngle, spreadAngle);
-
-            // Crear la dirección con dispersión
-            Quaternion spreadRotation = Quaternion.Euler(randomSpreadX, randomSpreadY, 0);
-            Vector3 spreadDirection = spreadRotation * firePoint.forward;
-
-            // Variación de velocidad para cada pellet
-            float speedVariation = Random.Range(bulletSpeedVariation, 1.1f);
-            Vector3 velocity = spreadDirection.normalized * bulletSpeed * speedVariation;
-
-            // Spawn de la bala
-            Runner.Spawn(
-                bulletPrefab,
-                firePoint.position,
-                Quaternion.LookRotation(spreadDirection),
+            float rX = Random.Range(-spreadAngle, spreadAngle);
+            float rY = Random.Range(-spreadAngle, spreadAngle);
+            Vector3 dir     = Quaternion.Euler(rX, rY, 0) * firePoint.forward;
+            float speedMult = Random.Range(bulletSpeedVariation, 1.1f);
+            Vector3 vel     = dir.normalized * bulletSpeed * speedMult;
+            Runner.Spawn(bulletPrefab, firePoint.position, Quaternion.LookRotation(dir),
                 Object.InputAuthority,
-                onBeforeSpawned: (r, obj) => obj.GetComponent<NetworkBullet>()?.Init(velocity)
-            );
+                onBeforeSpawned: (r, obj) => obj.GetComponent<NetworkBullet>()?.Init(vel));
         }
-
-        Debug.Log($"[Shotgun] ¡Disparada {pelletsPerShot} balas! Munición: {CurrentAmmo}/{ammoCapacity}");
+        Debug.Log($"[Shotgun] {pelletsPerShot} balas! Ammo:{CurrentAmmo}/{ammoCapacity}");
     }
 }

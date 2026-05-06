@@ -1,18 +1,20 @@
+using Fusion;
 using UnityEngine;
 
-// Renderiza efectos visuales de impactos, explosiones y destellos en el mundo
-public class ImpactEffects : MonoBehaviour
+/// <summary>
+/// Singleton de efectos visuales de impacto.
+/// Coloca este componente en un GameObject en la PlayerScene.
+/// Los efectos se disparan via RPC desde NetworkBullet para que
+/// todos los clientes los vean.
+/// </summary>
+public class ImpactEffects : NetworkBehaviour
 {
-    [Header("Prefabs")]
-    [SerializeField] private GameObject bulletImpactPrefab;
-    [SerializeField] private GameObject explosionPrefab;
-    [SerializeField] private GameObject bloodSplashPrefab;
-
     [Header("Particle Settings")]
     [SerializeField] private float particleLifetime = 2f;
-    [SerializeField] private float explosionScale = 2f;
 
     private static ImpactEffects instance;
+
+    public static ImpactEffects Instance => instance;
 
     private void Awake()
     {
@@ -22,133 +24,134 @@ public class ImpactEffects : MonoBehaviour
             Destroy(gameObject);
     }
 
-    // Dibuja una esfera amarilla y una línea en la dirección del impacto
+    // =========================================================
+    // API ESTÁTICA — llamar desde cualquier script
+    // El host llama estos métodos → RPC a todos los clientes
+    // =========================================================
+
     public static void PlayBulletImpact(Vector3 position, Vector3 normal)
     {
-        if (instance == null)
-            return;
-
-        // Crear esfera de impacto visual
-        GameObject impact = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        impact.transform.position = position;
-        impact.transform.localScale = Vector3.one * 0.3f;
-
-        // Remover collider
-        Collider col = impact.GetComponent<Collider>();
-        if (col != null) Destroy(col);
-
-        // Aplicar material color
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = new Color(1f, 0.8f, 0f, 0.8f);
-        impact.GetComponent<Renderer>().material = mat;
-
-        // Destruir después de cierto tiempo
-        Destroy(impact, instance.particleLifetime);
-
-        // Raycast línea de impacto (visual)
-        Debug.DrawLine(position, position + normal * 2f, Color.yellow, instance.particleLifetime);
+        if (instance == null) { Debug.LogWarning("[ImpactEffects] Instance null!"); return; }
+        instance.RPC_BulletImpact(position, normal);
     }
 
-    // Dibuja una esfera naranja que crece y un círculo de radio de explosión
-    public static void PlayExplosion(Vector3 position, float radius = 5f)
-    {
-        if (instance == null)
-            return;
-
-        // Crear esfera de explosión
-        GameObject explosion = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        explosion.transform.position = position;
-        explosion.transform.localScale = Vector3.one * (radius * 0.4f);
-        explosion.name = "Explosion";
-
-        Collider col = explosion.GetComponent<Collider>();
-        if (col != null) Destroy(col);
-
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = new Color(1f, 0.5f, 0f, 0.7f);
-        explosion.GetComponent<Renderer>().material = mat;
-
-        Destroy(explosion, instance.particleLifetime);
-
-        // Efecto de onda expansiva
-        instance.StartCoroutine(ScaleExplosion(explosion.transform, instance.particleLifetime));
-
-        // Debug: dibujar radio de explosión
-        DebugDrawCircle(position, radius, Color.red, instance.particleLifetime);
-    }
-
-    // Dibuja un quad rojo en la dirección del impacto
     public static void PlayBloodSplash(Vector3 position, Vector3 normal)
     {
-        if (instance == null)
-            return;
-
-        // Crear efecto de salpicadura
-        GameObject splash = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        splash.transform.position = position;
-        splash.transform.rotation = Quaternion.FromToRotation(Vector3.up, normal);
-        splash.transform.localScale = Vector3.one * 0.5f;
-
-        Collider col = splash.GetComponent<Collider>();
-        if (col != null) Destroy(col);
-
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = new Color(1f, 0f, 0f, 0.7f);
-        splash.GetComponent<Renderer>().material = mat;
-
-        Destroy(splash, instance.particleLifetime);
+        if (instance == null) return;
+        instance.RPC_BloodSplash(position, normal);
     }
 
-    // Crea una luz amarilla puntual que desaparece en 0.2 segundos
     public static void PlayImpactFlash(Vector3 position)
     {
-        if (instance == null)
-            return;
+        if (instance == null) return;
+        instance.RPC_ImpactFlash(position);
+    }
 
+    public static void PlayExplosion(Vector3 position, float radius = 5f)
+    {
+        if (instance == null) return;
+        instance.RPC_Explosion(position, radius);
+    }
+
+    // =========================================================
+    // RPCs — host los llama, todos los clientes los ejecutan
+    // =========================================================
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_BulletImpact(Vector3 position, Vector3 normal)
+    {
+        SpawnBulletImpact(position, normal);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_BloodSplash(Vector3 position, Vector3 normal)
+    {
+        SpawnBloodSplash(position, normal);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ImpactFlash(Vector3 position)
+    {
+        SpawnImpactFlash(position);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_Explosion(Vector3 position, float radius)
+    {
+        SpawnExplosion(position, radius);
+    }
+
+    // =========================================================
+    // IMPLEMENTACIÓN LOCAL — se ejecuta en cada cliente
+    // =========================================================
+
+    private void SpawnBulletImpact(Vector3 position, Vector3 normal)
+    {
+        GameObject impact = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        impact.transform.position   = position;
+        impact.transform.localScale = Vector3.one * 0.3f;
+        Destroy(impact.GetComponent<Collider>());
+
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        mat.color = new Color(1f, 0.8f, 0f, 0.8f);
+        impact.GetComponent<Renderer>().material = mat;
+        Destroy(impact, particleLifetime);
+
+        Debug.DrawLine(position, position + normal * 2f, Color.yellow, particleLifetime);
+    }
+
+    private void SpawnBloodSplash(Vector3 position, Vector3 normal)
+    {
+        GameObject splash = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        splash.transform.position   = position;
+        splash.transform.rotation   = Quaternion.FromToRotation(Vector3.up, normal);
+        splash.transform.localScale = Vector3.one * 0.5f;
+        Destroy(splash.GetComponent<Collider>());
+
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        mat.color = new Color(1f, 0f, 0f, 0.7f);
+        splash.GetComponent<Renderer>().material = mat;
+        Destroy(splash, particleLifetime);
+    }
+
+    private void SpawnImpactFlash(Vector3 position)
+    {
         GameObject flash = new GameObject("ImpactFlash");
         flash.transform.position = position;
 
-        Light light = flash.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.range = 10f;
-        light.intensity = 2f;
-        light.color = Color.yellow;
+        Light light       = flash.AddComponent<Light>();
+        light.type        = LightType.Point;
+        light.range       = 10f;
+        light.intensity   = 2f;
+        light.color       = Color.yellow;
 
-        // Fade out gradual
-        Material mat = new Material(Shader.Find("Standard"));
         Destroy(flash, 0.2f);
     }
 
-    // Corrutina para animar expansión de explosión
-    public static System.Collections.IEnumerator ScaleExplosion(Transform explosionTransform, float duration)
+    private void SpawnExplosion(Vector3 position, float radius)
     {
-        Vector3 startScale = explosionTransform.localScale;
-        float startTime = Time.time;
-        float endTime = startTime + duration;
+        GameObject explosion = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        explosion.transform.position   = position;
+        explosion.transform.localScale = Vector3.one * (radius * 0.4f);
+        Destroy(explosion.GetComponent<Collider>());
 
-        while (Time.time < endTime && explosionTransform != null)
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        mat.color = new Color(1f, 0.5f, 0f, 0.7f);
+        explosion.GetComponent<Renderer>().material = mat;
+
+        StartCoroutine(ScaleAndDestroy(explosion.transform, particleLifetime));
+    }
+
+    private System.Collections.IEnumerator ScaleAndDestroy(Transform t, float duration)
+    {
+        Vector3 startScale = t.localScale;
+        float elapsed = 0f;
+        while (elapsed < duration && t != null)
         {
-            float progress = (Time.time - startTime) / duration;
-            explosionTransform.localScale = startScale * (1f + progress * 0.5f);
+            elapsed += Time.deltaTime;
+            t.localScale = startScale * (1f + (elapsed / duration) * 0.5f);
             yield return null;
         }
+        if (t != null) Destroy(t.gameObject);
     }
-
-    // Debug: dibujar círculo en el mundo
-    private static void DebugDrawCircle(Vector3 center, float radius, Color color, float duration)
-    {
-        int segments = 32;
-        for (int i = 0; i < segments; i++)
-        {
-            float angle1 = (i / (float)segments) * Mathf.PI * 2f;
-            float angle2 = ((i + 1) / (float)segments) * Mathf.PI * 2f;
-
-            Vector3 p1 = center + new Vector3(Mathf.Cos(angle1) * radius, 0, Mathf.Sin(angle1) * radius);
-            Vector3 p2 = center + new Vector3(Mathf.Cos(angle2) * radius, 0, Mathf.Sin(angle2) * radius);
-
-            Debug.DrawLine(p1, p2, color, duration);
-        }
-    }
-
-    public static ImpactEffects Instance => instance;
 }

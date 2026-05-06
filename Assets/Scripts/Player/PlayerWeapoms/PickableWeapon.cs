@@ -1,37 +1,36 @@
 using Fusion;
 using UnityEngine;
 
-// Arma colocada en escena que puede ser recogida por el jugador
-public class PickableWeapon : MonoBehaviour
+public class PickableWeapon : NetworkBehaviour
 {
     [Header("Pickup Settings")]
-    [SerializeField] private float pickupRadius  = 2f;
+    [SerializeField] private float pickupRadius   = 2f;
     [SerializeField] private float pickupCooldown = 1f;
 
-    [Header("Visual Feedback")]
-    [SerializeField] private bool  enablePickupGlow = true;
-    [SerializeField] private Color glowColor        = Color.yellow;
-    [SerializeField] private float glowIntensity    = 1.5f;
+    [Header("Visual")]
+    [SerializeField] private bool  enableGlow    = true;
+    [SerializeField] private Color glowColor     = Color.yellow;
+    [SerializeField] private float glowIntensity = 1.5f;
+
+    // Networked: cuando cambia a true, todos los clientes desactivan el pickup visual
+    [Networked, OnChangedRender(nameof(OnPickupStateChanged))]
+    public NetworkBool IsPickedUp { get; set; }
 
     private BaseWeapon weaponComponent;
-    private Collider   pickupCollider;
     private Renderer   weaponRenderer;
-    private float      lastPickupTime = -999f;
-    private bool       isPickedUp     = false;
+    private Collider   pickupCollider;
+    private float      lastCheckTime = -999f;
 
-    private void Start()
+    public override void Spawned()
     {
         weaponComponent = GetComponent<BaseWeapon>();
-        pickupCollider  = GetComponent<Collider>();
-        weaponRenderer  = GetComponentInChildren<Renderer>();
+        weaponRenderer  = GetComponentInChildren<Renderer>(true);
 
-        if (weaponComponent == null)
-            Debug.LogWarning("[PickableWeapon] No hay BaseWeapon en este GameObject!");
-
+        pickupCollider = GetComponent<Collider>();
         if (pickupCollider == null)
         {
-            var sphere    = gameObject.AddComponent<SphereCollider>();
-            sphere.radius = pickupRadius;
+            var sphere       = gameObject.AddComponent<SphereCollider>();
+            sphere.radius    = pickupRadius;
             sphere.isTrigger = true;
             pickupCollider   = sphere;
         }
@@ -40,64 +39,71 @@ public class PickableWeapon : MonoBehaviour
             pickupCollider.isTrigger = true;
         }
 
-        if (enablePickupGlow && weaponRenderer != null)
-            ApplyGlowEffect();
+        if (weaponComponent == null)
+            Debug.LogWarning($"[PickableWeapon] Sin BaseWeapon en {name}");
+
+        if (enableGlow && weaponRenderer != null)
+            ApplyGlow();
+
+        // Si ya fue recogida (cliente tardío), desactivar visualmente
+        if (IsPickedUp)
+            DisablePickupVisuals();
     }
 
-    private void Update()
+    public override void FixedUpdateNetwork()
     {
-        if (isPickedUp) return;
-        if (Time.time < lastPickupTime + pickupCooldown) return;
+        if (!Object.HasStateAuthority) return;
+        if (IsPickedUp) return;
+        if (Runner.SimulationTime < lastCheckTime + pickupCooldown) return;
 
-        CheckForNearbyPlayers();
-    }
+        lastCheckTime = Runner.SimulationTime;
 
-    private void CheckForNearbyPlayers()
-    {
-        Collider[] hits = Physics.OverlapSphere(transform.position, pickupRadius);
-
-        foreach (Collider hit in hits)
+        var hits = Physics.OverlapSphere(transform.position, pickupRadius);
+        foreach (var hit in hits)
         {
-            PlayerWeaponManager weaponManager = hit.GetComponentInParent<PlayerWeaponManager>();
-            if (weaponManager == null) continue;
+            PlayerWeaponManager wm = hit.GetComponentInParent<PlayerWeaponManager>();
+            if (wm == null || weaponComponent == null) continue;
 
-            // Solo el objeto con StateAuthority ejecuta el pickup
-            // (en Host Mode = el host)
-            if (!weaponManager.Object.HasStateAuthority) continue;
-
-            if (weaponManager.AddWeapon(weaponComponent))
+            if (wm.AddWeapon(weaponComponent))
             {
-                isPickedUp     = true;
-                lastPickupTime = Time.time;
-
-                // Desactivar visualmente en todos los clientes via RPC
-                // Como no somos NetworkBehaviour, usamos el runner del WeaponManager
-                weaponManager.RPC_NotifyWeaponPickedUp(GetComponent<NetworkObject>() != null
-                    ? GetComponent<NetworkObject>().Id
-                    : default);
-
-                // Desactivar localmente
-                gameObject.SetActive(false);
+                // ✅ NO despawnear — marcar como recogida
+                // El arma sigue existiendo como NetworkObject en el inventario
+                IsPickedUp = true;
                 return;
             }
         }
     }
 
-    public void Reset()
+    // OnChangedRender se ejecuta en TODOS los clientes cuando IsPickedUp cambia
+    private void OnPickupStateChanged()
     {
-        isPickedUp     = false;
-        lastPickupTime = Time.time;
-        if (pickupCollider != null) pickupCollider.enabled = true;
-        gameObject.SetActive(true);
+        if (IsPickedUp)
+            DisablePickupVisuals();
     }
 
-    private void ApplyGlowEffect()
+    private void DisablePickupVisuals()
     {
-        if (weaponRenderer == null) return;
-        var mat = new Material(weaponRenderer.material);
-        mat.EnableKeyword("_EMISSION");
-        mat.SetColor("_EmissionColor", glowColor * glowIntensity);
-        weaponRenderer.material = mat;
+        // Desactivar solo el collider de pickup — el modelo lo gestiona BaseWeapon.Render()
+        if (pickupCollider != null)
+            pickupCollider.enabled = false;
+
+        // Quitar el glow si está aplicado
+        if (weaponRenderer != null && weaponRenderer.material.HasProperty("_EmissionColor"))
+        {
+            weaponRenderer.material.DisableKeyword("_EMISSION");
+            weaponRenderer.material.SetColor("_EmissionColor", Color.black);
+        }
+    }
+
+    private void ApplyGlow()
+    {
+        Material mat = weaponRenderer.material;
+        if (mat.HasProperty("_EmissionColor"))
+        {
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", glowColor * glowIntensity);
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        }
     }
 
     private void OnDrawGizmosSelected()

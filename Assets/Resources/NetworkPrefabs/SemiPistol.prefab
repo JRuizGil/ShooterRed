@@ -107,11 +107,14 @@ MonoBehaviour:
   weaponName: Weapon
   ammoCapacity: 30
   fireRate: 0.1
+  reloadTime: 1.5
   bulletSpeed: 20
   firePoint: {fileID: 5140528627465821526}
   bulletPrefab:
     RawGuidValue: 1d4ce415c4d178240b90e07ef3ce5c44
   _CurrentAmmo: 0
+  _IsBeingCarried:
+    _value: 0
 --- !u!114 &5645665971172949608
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -126,7 +129,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   pickupRadius: 1
   pickupCooldown: 1
-  enablePickupGlow: 0
+  enableGlow: 1
   glowColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   glowIntensity: 1.5
 --- !u!114 &2167165032310478845
@@ -147,6 +150,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 8237685567736287263}
+  - {fileID: 5645665971172949608}
   ForceRemoteRenderTimeframe: 0
 --- !u!135 &8856772219462658194
 SphereCollider:
@@ -161,7 +165,7 @@ SphereCollider:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
   m_LayerOverridePriority: 0
   m_IsTrigger: 1
   m_ProvidesContacts: 0
@@ -188,7 +192,7 @@ Rigidbody:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 1

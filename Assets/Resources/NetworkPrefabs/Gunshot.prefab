@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 469335265063505625}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.000000014570447, z: 0.333333}
+  m_LocalPosition: {x: 0, y: 0, z: 0.451}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -137,7 +137,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   pickupRadius: 2
   pickupCooldown: 1
-  enablePickupGlow: 0
+  enableGlow: 1
   glowColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   glowIntensity: 1.5
 --- !u!135 &6275594073971162804
@@ -153,7 +153,7 @@ SphereCollider:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
   m_LayerOverridePriority: 0
   m_IsTrigger: 1
   m_ProvidesContacts: 0
@@ -180,7 +180,7 @@ Rigidbody:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 1
@@ -209,6 +209,8 @@ MonoBehaviour:
   bulletPrefab:
     RawGuidValue: 1d4ce415c4d178240b90e07ef3ce5c44
   _CurrentAmmo: 0
+  _IsBeingCarried:
+    _value: 0
   pelletsPerShot: 8
   spreadAngle: 15
   bulletSpeedVariation: 0.9
@@ -229,5 +231,6 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
+  - {fileID: -2964810695771534261}
   - {fileID: 7720826297299757509}
   ForceRemoteRenderTimeframe: 0

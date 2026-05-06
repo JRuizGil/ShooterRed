@@ -2,185 +2,117 @@ using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Mantiene registro centralizado de kills, deaths y estadísticas de todos los jugadores
 public class GameState : NetworkBehaviour
 {
     [Networked] public int CurrentScoreLimit { get; set; }
-    [Networked] public int MatchState { get; set; }
+    [Networked] public int MatchState        { get; set; }
+    [Networked] public int TotalKills        { get; set; }
+    [Networked] public int TotalDeaths       { get; set; }
 
-    // Diccionarios para estadísticas (no sincronizados directamente)
     private Dictionary<PlayerRef, PlayerStats> playerStats = new Dictionary<PlayerRef, PlayerStats>();
-
-    // Sistema de puntuación por eventos
-    [Networked] public int TotalKills { get; set; }
-    [Networked] public int TotalDeaths { get; set; }
 
     public class PlayerStats
     {
-        public int Kills = 0;
-        public int Deaths = 0;
-        public int KillStreak = 0;
+        public int Kills        = 0;
+        public int Deaths       = 0;
+        public int KillStreak   = 0;
         public int MaxKillStreak = 0;
     }
 
-    private static GameState instance;
+    private static GameState _instance;
+    public static GameState Instance => _instance;
 
     public override void Spawned()
     {
-        Debug.Log("[GameState] GameState spawned");
-        instance = this;
-
-        CurrentScoreLimit = 10;
-        MatchState = 0;
+        _instance = this;
+        if (Object.HasStateAuthority)
+        {
+            CurrentScoreLimit = 10;
+            MatchState        = 0;
+        }
+        Debug.Log("[GameState] Spawned");
     }
 
-    // Registra un kill, incrementa racha del atacante, resetea la de la víctima
     public void AddKill(PlayerRef killer, PlayerRef victim, string cause = "Unknown")
     {
-        if (!HasStateAuthority)
-            return;
+        if (!HasStateAuthority) return;
 
-        // Asegurar que existen los registros
-        if (!playerStats.ContainsKey(killer))
-            playerStats[killer] = new PlayerStats();
-        if (!playerStats.ContainsKey(victim))
-            playerStats[victim] = new PlayerStats();
+        if (!playerStats.ContainsKey(killer)) playerStats[killer] = new PlayerStats();
+        if (!playerStats.ContainsKey(victim)) playerStats[victim] = new PlayerStats();
 
-        // Incrementar kills y streak del atacante
         playerStats[killer].Kills++;
         playerStats[killer].KillStreak++;
         if (playerStats[killer].KillStreak > playerStats[killer].MaxKillStreak)
-        {
             playerStats[killer].MaxKillStreak = playerStats[killer].KillStreak;
-        }
 
-        int killerStreak = playerStats[killer].KillStreak;
+        int streak = playerStats[killer].KillStreak;
 
-        // Resetear streak de la víctima e incrementar deaths
         playerStats[victim].Deaths++;
         playerStats[victim].KillStreak = 0;
-
         TotalKills++;
 
-        // Obtener nombres de los jugadores
-        PlayerState killerState = FindPlayerStateByRef(killer);
-        PlayerState victimState = FindPlayerStateByRef(victim);
-        string killerName = killerState != null ? killerState.PlayerName.ToString() : "Unknown";
-        string victimName = victimState != null ? victimState.PlayerName.ToString() : "Unknown";
+        // ✅ Usar PlayerRegistry en vez de FindObjectsByType
+        NetworkObject killerObj = PlayerRegistry.GetPlayer(killer);
+        NetworkObject victimObj = PlayerRegistry.GetPlayer(victim);
 
-        Debug.Log($"[GameState] Kill: {killer} killed {victim}. Streak: {killerStreak}. Cause: {cause}");
+        string killerName = killerObj?.GetComponent<PlayerState>()?.PlayerName.ToString() ?? "Unknown";
+        string victimName = victimObj?.GetComponent<PlayerState>()?.PlayerName.ToString() ?? "Unknown";
 
-        // Agregar al kill feed
-        KillFeed killFeed = FindFirstObjectByType<KillFeed>();
-        if (killFeed != null)
-        {
-            killFeed.AddKillFeedEntry(killerName, victimName, cause);
-        }
+        Debug.Log($"[GameState] {killerName} eliminó a {victimName}. Racha: {streak}");
+
+        KillFeed.Instance?.AddKillFeedEntry(killerName, victimName, cause);
 
         // Desbloquear habilidades por racha
-        PlayerState killerPlayerState = FindPlayerStateByRef(killer);
-        if (killerPlayerState != null)
+        PlayerHabilities abilities = killerObj?.GetComponent<PlayerHabilities>();
+        if (abilities != null)
         {
-            PlayerHabilities abilities = killerPlayerState.GetComponent<PlayerHabilities>();
-            if (abilities != null)
-            {
-                // Desbloquear habilidades por rachas
-                if (killerStreak == 3)
-                {
-                    abilities.UnlockAbility(3);
-                }
-                else if (killerStreak == 5)
-                {
-                    abilities.UnlockAbility(5);
-                }
-                else if (killerStreak == 10)
-                {
-                    abilities.UnlockAbility(10);
-                }
-            }
+            if (streak == 3)  abilities.UnlockAbility(3);
+            if (streak == 5)  abilities.UnlockAbility(5);
+            if (streak == 10) abilities.UnlockAbility(10);
         }
 
-        // Verificar victoria
         if (playerStats[killer].Kills >= CurrentScoreLimit)
-        {
-            EndMatch(killer);
-        }
+            EndMatch(killer, killerName);
     }
 
-    // Busca el PlayerState de un jugador comparando su PlayerRef
-    private PlayerState FindPlayerStateByRef(PlayerRef playerRef)
+    private void EndMatch(PlayerRef winner, string winnerName)
     {
-        PlayerState[] allPlayers = FindObjectsByType<PlayerState>(FindObjectsSortMode.None);
-        foreach (PlayerState player in allPlayers)
-        {
-            if (player.OwnerPlayer == playerRef)
-                return player;
-        }
-        return null;
+        MatchState = 1;
+        Debug.Log($"[GameState] Partida terminada! Ganador: {winnerName}");
+        RPC_OnMatchEnd(winnerName);
     }
 
-    // Retorna las estadísticas de un jugador específico
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_OnMatchEnd(string winnerName)
+    {
+        Debug.Log($"[GameState] ¡{winnerName} ha ganado!");
+        // Aquí mostrar pantalla de victoria
+    }
+
     public PlayerStats GetPlayerStats(PlayerRef player)
     {
-        if (playerStats.ContainsKey(player))
-            return playerStats[player];
-
-        PlayerStats newStats = new PlayerStats();
-        playerStats[player] = newStats;
-        return newStats;
+        if (!playerStats.ContainsKey(player))
+            playerStats[player] = new PlayerStats();
+        return playerStats[player];
     }
 
-    // Retorna todos los jugadores ordenados por kills descendente
     public List<(PlayerRef player, PlayerStats stats)> GetLeaderboard()
     {
-        List<(PlayerRef, PlayerStats)> leaderboard = new List<(PlayerRef, PlayerStats)>();
-
+        var list = new List<(PlayerRef, PlayerStats)>();
         foreach (var kvp in playerStats)
-        {
-            leaderboard.Add((kvp.Key, kvp.Value));
-        }
-
-        // Ordenar por kills descendente
-        leaderboard.Sort((a, b) => b.Item2.Kills.CompareTo(a.Item2.Kills));
-
-        return leaderboard;
+            list.Add((kvp.Key, kvp.Value));
+        list.Sort((a, b) => b.Item2.Kills.CompareTo(a.Item2.Kills));
+        return list;
     }
 
-    /// <summary>
-    /// Finalizar la partida
-    /// </summary>
-    private void EndMatch(PlayerRef winner)
-    {
-        MatchState = 1; // 1 = Finished
-        Debug.Log($"[GameState] Match ended! Winner: {winner}");
-
-        // Aquí puedes agregar lógica de fin de juego
-        // Por ejemplo: mostrar pantalla de victoria, resetear, etc.
-    }
-
-    /// <summary>
-    /// Reiniciar estadísticas para nueva partida
-    /// </summary>
     public void ResetStats()
     {
-        if (!HasStateAuthority)
-            return;
-
+        if (!HasStateAuthority) return;
         playerStats.Clear();
-        TotalKills = 0;
+        TotalKills  = 0;
         TotalDeaths = 0;
-        MatchState = 0;
-
-        Debug.Log("[GameState] Stats reset for new match");
+        MatchState  = 0;
     }
 
-    /// <summary>
-    /// Singleton getter
-    /// </summary>
-    public static GameState Instance => instance;
-
-    public bool CanValidateGlobalRules()
-    {
-        return HasStateAuthority;
-    }
+    public bool CanValidateGlobalRules() => HasStateAuthority;
 }

@@ -3,80 +3,86 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-// Muestra vida, racha de kills y estadísticas en pantalla durante el juego
 public class GameHUD : MonoBehaviour
 {
     [Header("Health Display")]
     [SerializeField] private TextMeshProUGUI healthText;
     [SerializeField] private Slider healthBar;
     [SerializeField] private Color healthFullColor = Color.green;
-    [SerializeField] private Color healthLowColor = Color.red;
+    [SerializeField] private Color healthLowColor  = Color.red;
 
-    [Header("Kill Streak Display")]
+    [Header("Kill Streak")]
     [SerializeField] private TextMeshProUGUI killStreakText;
     [SerializeField] private TextMeshProUGUI killStreakBonusText;
 
-    [Header("Stats Display")]
+    [Header("Stats")]
     [SerializeField] private TextMeshProUGUI statsText;
 
     [Header("Crosshair")]
     [SerializeField] private Image crosshairImage;
     [SerializeField] private Color crosshairNormalColor = Color.white;
-    [SerializeField] private Color crosshairHitColor = Color.red;
+    [SerializeField] private Color crosshairHitColor    = Color.red;
 
-    [Header("HUD Canvas")]
-    [SerializeField] private Canvas hudCanvas;
+    [Header("Respawn")]
+    [SerializeField] private GameObject deathPanel;
+    [SerializeField] private TextMeshProUGUI respawnCountdownText;
 
-    private PlayerHealth playerHealth;
-    private GameState gameState;
-    private PlayerRef localPlayer;
-    private Image crosshairComponent;
+    [Header("Ammo")]
+    [SerializeField] private TextMeshProUGUI ammoText;
+
+    public static GameHUD Instance { get; private set; }
+
+    private PlayerHealth    playerHealth;
+    private PlayerRef       localPlayer;
+    private GameState       gameState;
+    private RespawnManager  respawnManager;
+    private PlayerWeaponManager weaponManager;
     private float crosshairHitTimer = 0f;
+    private bool  showingDeathScreen = false;
+    private float deathScreenTimer   = 0f;
+
+    private void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
 
     private void Start()
     {
-        Debug.Log("[GameHUD] HUD initialized");
+        // Buscar jugador local con retraso para asegurar que está spawneado
+        Invoke(nameof(FindLocalPlayer), 0.5f);
+        if (deathPanel != null) deathPanel.SetActive(false);
+    }
 
-        // Encontrar el jugador local
-        PlayerState[] allPlayers = FindObjectsByType<PlayerState>(FindObjectsSortMode.None);
-        foreach (PlayerState player in allPlayers)
+    private void FindLocalPlayer()
+    {
+        foreach (PlayerState ps in FindObjectsByType<PlayerState>(FindObjectsSortMode.None))
         {
-            if (player.HasInputAuthority)
-            {
-                playerHealth = player.GetComponent<PlayerHealth>();
-                localPlayer = player.OwnerPlayer;
-                break;
-            }
+            if (!ps.HasInputAuthority) continue;
+
+            playerHealth   = ps.GetComponent<PlayerHealth>();
+            localPlayer    = ps.OwnerPlayer;
+            respawnManager = ps.GetComponent<RespawnManager>();
+            weaponManager  = ps.GetComponent<PlayerWeaponManager>();
+            break;
         }
+
+        gameState = GameState.Instance;
 
         if (playerHealth == null)
-        {
-            Debug.LogWarning("[GameHUD] No se encontró PlayerHealth local");
-        }
+            Debug.LogWarning("[GameHUD] PlayerHealth local no encontrado, reintentando...");
+            // Reintentar si no se encontró
+            Invoke(nameof(FindLocalPlayer), 1f);
+    }
 
-        // Encontrar GameState
-        gameState = FindFirstObjectByType<GameState>();
-        if (gameState == null)
-        {
-            Debug.LogWarning("[GameHUD] No se encontró GameState");
-        }
-
-        // Inicializar crosshair
-        if (crosshairImage != null)
-        {
-            crosshairComponent = crosshairImage.GetComponent<Image>();
-            if (crosshairComponent != null)
-                crosshairComponent.color = crosshairNormalColor;
-        }
-
-        if (hudCanvas == null)
-        {
-            hudCanvas = GetComponentInParent<Canvas>();
-            if (hudCanvas == null)
-            {
-                Debug.LogWarning("[GameHUD] Canvas no encontrado");
-            }
-        }
+    // Llamado desde PlayerState.RefreshHealthVisuals()
+    public void RefreshFromPlayerState(PlayerState ps)
+    {
+        playerHealth  = ps.GetComponent<PlayerHealth>();
+        localPlayer   = ps.OwnerPlayer;
+        respawnManager = ps.GetComponent<RespawnManager>();
+        weaponManager  = ps.GetComponent<PlayerWeaponManager>();
+        gameState      = GameState.Instance;
     }
 
     private void Update()
@@ -85,166 +91,123 @@ public class GameHUD : MonoBehaviour
         UpdateKillStreakDisplay();
         UpdateStatsDisplay();
         UpdateCrosshair();
+        UpdateAmmoDisplay();
+        UpdateRespawnCountdown();
     }
 
-    // Actualiza el texto y barra de vida según la salud actual del jugador
     private void UpdateHealthDisplay()
     {
-        if (playerHealth == null || healthText == null)
-            return;
+        if (playerHealth == null || healthText == null) return;
 
-        int hitsRemaining = playerHealth.GetHitsRemaining();
+        int  hits    = playerHealth.GetHitsRemaining();
         bool isAlive = playerHealth.GetIsAlive();
 
-        if (isAlive)
-        {
-            healthText.text = $"Vida: {hitsRemaining}/4";
-            healthText.color = Color.white;
-        }
-        else
-        {
-            healthText.text = "MUERTO";
-            healthText.color = Color.red;
-        }
+        healthText.text  = isAlive ? $"Vida: {hits}/4" : "MUERTO";
+        healthText.color = isAlive ? Color.white : Color.red;
 
         if (healthBar != null)
         {
-            healthBar.value = hitsRemaining / 4f;
-
-            // Cambiar color según vida
-            Image fillImage = healthBar.fillRect.GetComponent<Image>();
-            if (fillImage != null)
-            {
-                fillImage.color = Color.Lerp(healthLowColor, healthFullColor, healthBar.value);
-            }
+            healthBar.value = hits / 4f;
+            Image fill = healthBar.fillRect?.GetComponent<Image>();
+            if (fill != null)
+                fill.color = Color.Lerp(healthLowColor, healthFullColor, healthBar.value);
         }
     }
 
-    /// <summary>
-    /// Actualizar display de kill streak
-    /// </summary>
     private void UpdateKillStreakDisplay()
     {
-        if (gameState == null || killStreakText == null)
-            return;
+        if (gameState == null || killStreakText == null) return;
 
         GameState.PlayerStats stats = gameState.GetPlayerStats(localPlayer);
-        if (stats == null)
-            return;
+        if (stats == null) return;
 
         killStreakText.text = $"Racha: {stats.KillStreak}";
 
-        // Mostrar bonus especial por rachas
         if (killStreakBonusText != null)
         {
-            if (stats.KillStreak >= 10)
-            {
-                killStreakBonusText.text = "🔥 ASESINATO EN SERIE 🔥";
-                killStreakBonusText.color = new Color(1f, 0.5f, 0f); // Naranja
-            }
-            else if (stats.KillStreak >= 5)
-            {
-                killStreakBonusText.text = "⭐ RACHA INCENDIARIA ⭐";
-                killStreakBonusText.color = Color.yellow;
-            }
-            else if (stats.KillStreak >= 3)
-            {
-                killStreakBonusText.text = "💥 Mata múltiple";
-                killStreakBonusText.color = new Color(0f, 1f, 0.5f); // Cyan
-            }
-            else
-            {
-                killStreakBonusText.text = "";
-            }
+            if      (stats.KillStreak >= 10) { killStreakBonusText.text = "🔥 ASESINATO EN SERIE"; killStreakBonusText.color = new Color(1f,0.5f,0f); }
+            else if (stats.KillStreak >= 5)  { killStreakBonusText.text = "⭐ RACHA INCENDIARIA";  killStreakBonusText.color = Color.yellow; }
+            else if (stats.KillStreak >= 3)  { killStreakBonusText.text = "💥 Mata múltiple";      killStreakBonusText.color = new Color(0f,1f,0.5f); }
+            else                              { killStreakBonusText.text = ""; }
         }
     }
 
-    /// <summary>
-    /// Actualizar display de estadísticas
-    /// </summary>
     private void UpdateStatsDisplay()
     {
-        if (gameState == null || statsText == null)
-            return;
-
+        if (gameState == null || statsText == null) return;
         GameState.PlayerStats stats = gameState.GetPlayerStats(localPlayer);
-        if (stats == null)
-            return;
-
-        statsText.text = $"K: {stats.Kills} | D: {stats.Deaths} | Max Racha: {stats.MaxKillStreak}";
+        if (stats == null) return;
+        statsText.text = $"K: {stats.Kills} | D: {stats.Deaths} | Max: {stats.MaxKillStreak}";
     }
 
-    /// <summary>
-    /// Actualizar crosshair
-    /// </summary>
+    private void UpdateAmmoDisplay()
+    {
+        if (weaponManager == null || ammoText == null) return;
+        BaseWeapon weapon = weaponManager.GetCurrentWeapon();
+        ammoText.text = weapon != null ? weapon.GetAmmoDisplay() : "--/--";
+    }
+
     private void UpdateCrosshair()
     {
-        if (crosshairComponent == null)
-            return;
-
-        // Restaurar color normal gradualmente
+        if (crosshairImage == null) return;
         if (crosshairHitTimer > 0)
         {
             crosshairHitTimer -= Time.deltaTime;
-            crosshairComponent.color = crosshairHitColor;
+            crosshairImage.color = crosshairHitColor;
         }
         else
         {
-            crosshairComponent.color = Color.Lerp(crosshairComponent.color, crosshairNormalColor, Time.deltaTime * 5f);
+            crosshairImage.color = Color.Lerp(crosshairImage.color, crosshairNormalColor, Time.deltaTime * 5f);
         }
     }
 
-    /// <summary>
-    /// Indicar que el disparo acertó
-    /// </summary>
+    private void UpdateRespawnCountdown()
+    {
+        if (!showingDeathScreen || respawnManager == null) return;
+
+        float countdown = respawnManager.GetRespawnCountdown();
+        if (respawnCountdownText != null)
+            respawnCountdownText.text = $"Respawn en {countdown:F1}s";
+    }
+
+    // =========================================================
+    // API PÚBLICA
+    // =========================================================
+
     public void ShowHitFeedback()
     {
-        crosshairHitTimer = 0.1f;
-        if (crosshairComponent != null)
-            crosshairComponent.color = crosshairHitColor;
+        crosshairHitTimer    = 0.1f;
+        crosshairImage.color = crosshairHitColor;
     }
 
-    /// <summary>
-    /// Mostrar notificación de kill
-    /// </summary>
+    public void ShowDeathScreen(float respawnDelay)
+    {
+        showingDeathScreen = true;
+        deathScreenTimer   = respawnDelay;
+        if (deathPanel != null) deathPanel.SetActive(true);
+    }
+
+    public void HideDeathScreen()
+    {
+        showingDeathScreen = false;
+        if (deathPanel != null) deathPanel.SetActive(false);
+    }
+
     public void ShowKillNotification(string killedPlayer)
     {
-        Debug.Log($"[GameHUD] Kill notification: {killedPlayer}");
-        
-        // Aquí puedes agregar una notificación visual flotante
-        if (killStreakBonusText != null)
-        {
-            killStreakBonusText.text = $"¡Eliminaste a {killedPlayer}!";
-            killStreakBonusText.color = Color.green;
-
-            // Auto-hide después de 2 segundos
-            Invoke(nameof(ClearKillNotification), 2f);
-        }
+        if (killStreakBonusText == null) return;
+        killStreakBonusText.text  = $"¡Eliminaste a {killedPlayer}!";
+        killStreakBonusText.color = Color.green;
+        Invoke(nameof(ClearKillNotification), 2f);
     }
 
-    /// <summary>
-    /// Limpiar notificación de kill
-    /// </summary>
     private void ClearKillNotification()
     {
-        if (killStreakBonusText != null)
-            killStreakBonusText.text = "";
+        if (killStreakBonusText != null) killStreakBonusText.text = "";
     }
 
-    /// <summary>
-    /// Singleton getter
-    /// </summary>
-    public static GameHUD Instance { get; private set; }
-
-    private void OnEnable()
+    private void OnDestroy()
     {
-        if (Instance == null)
-            Instance = this;
-    }
-
-    private void OnDisable()
-    {
-        if (Instance == this)
-            Instance = null;
+        if (Instance == this) Instance = null;
     }
 }
